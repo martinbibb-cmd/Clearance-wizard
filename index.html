@@ -307,12 +307,14 @@ const App = {
         modelSelect.innerHTML = "";
 
         // Filter DB and create new options
-        APPLIANCE_DB.filter(item => item.category === category).forEach((item) => {
-            const opt = document.createElement('option');
-            // We store the array INDEX as the value so we can look it up easily later
-            opt.value = APPLIANCE_DB.indexOf(item); 
-            opt.text = item.label;
-            modelSelect.appendChild(opt);
+        APPLIANCE_DB.forEach((item, index) => {
+            if (item.category === category) {
+                const opt = document.createElement('option');
+                // We store the array INDEX as the value so we can look it up easily later
+                opt.value = index; 
+                opt.text = item.label;
+                modelSelect.appendChild(opt);
+            }
         });
     },
     
