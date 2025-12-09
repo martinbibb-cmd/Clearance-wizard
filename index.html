@@ -115,12 +115,17 @@ const APPLIANCE_DB = [
 // 👁️ VISION SYSTEM (Improved Marker Detection)
 // ==========================================
 class VisionSystem {
-    constructor() { 
+    constructor() {
         this.ready = false;
+        this.scale = 0.5;
     }
-    
+
     init(video) {
-        this.src = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
+        // Initialize Mats with scaled dimensions to match canvas size
+        const w = Math.floor(video.videoWidth * this.scale);
+        const h = Math.floor(video.videoHeight * this.scale);
+
+        this.src = new cv.Mat(h, w, cv.CV_8UC4);
         this.gray = new cv.Mat();
         this.blurred = new cv.Mat();
         this.binary = new cv.Mat();
@@ -131,17 +136,23 @@ class VisionSystem {
 
     findMarker(video, markerSize) {
         if(!this.ready) return null;
-        const scale = 0.5;
-        const w = video.videoWidth * scale;
-        const h = video.videoHeight * scale;
+        const w = Math.floor(video.videoWidth * this.scale);
+        const h = Math.floor(video.videoHeight * this.scale);
 
         if(!this._ctx) {
             const c = document.createElement('canvas');
             c.width = w; c.height = h;
             this._ctx = c.getContext('2d', {willReadFrequently:true});
         }
+
+        // Ensure Mat dimensions match canvas dimensions
+        if(this.src.cols !== w || this.src.rows !== h) {
+            this.src.delete();
+            this.src = new cv.Mat(h, w, cv.CV_8UC4);
+        }
+
         this._ctx.drawImage(video, 0, 0, w, h);
-        
+
         this.src.data.set(this._ctx.getImageData(0,0,w,h).data);
         cv.cvtColor(this.src, this.gray, cv.COLOR_RGBA2GRAY);
         
@@ -177,7 +188,7 @@ class VisionSystem {
                     // Accept markers with aspect ratio <= 1.4 (roughly square)
                     if (aspectRatio <= 1.4 && area > maxArea) {
                         maxArea = area;
-                        bestPose = this._getPose(approx, video.videoWidth, video.videoHeight, scale, markerSize);
+                        bestPose = this._getPose(approx, video.videoWidth, video.videoHeight, this.scale, markerSize);
                     }
                 }
                 approx.delete();
