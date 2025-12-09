@@ -51,26 +51,28 @@
         <div id="status-pill" class="hidden">Initializing...</div>
 
         <div id="menu-panel" class="card interactive">
-            <h2 style="margin-top:0;">🔥 Clearance Genie</h2>
-            
-            <label for="input-type">Boiler Model</label>
-            <select id="input-type">
-                <!-- Populated dynamically from BOILER_DATABASE -->
-            </select>
+            <h1>🔥 Clearance Genie</h1>
 
-            <label for="input-size">Marker Size</label>
+            <label>1. Marker Size</label>
             <select id="input-size">
-                <option value="53">Credit Card (53mm)</option>
-                <option value="100">100mm Standard</option>
-                <option value="160">A4 Safe (160mm)</option>
+                <option value="45">45mm (Your Marker)</option>
+                <option value="53">53mm (Credit Card)</option>
+                <option value="160">160mm (A4 Print)</option>
             </select>
-            
-            <div class="toggle-row">
-                <label for="debug-mode">Show Computer Vision?</label>
-                <input type="checkbox" id="debug-mode" style="width:25px; height:25px;">
-            </div>
 
-            <button onclick="App.start()">Start Camera</button>
+            <label>2. Category</label>
+            <select id="input-category" onchange="App.updateModels()">
+                <option value="boiler">🔥 Boilers</option>
+                <option value="flue">⭕ Flues</option>
+                <option value="radiator">♨️ Radiators</option>
+                <option value="cylinder">🛢️ Cylinders</option>
+            </select>
+
+            <label>3. Select Model</label>
+            <select id="input-type">
+            </select>
+
+            <button class="primary" onclick="App.start()">Start Camera</button>
         </div>
 
         <div id="controls-panel" class="controls interactive hidden">
@@ -85,90 +87,30 @@
 
 <script>
 // ==========================================
-// 📚 BOILER DATABASE (Dims in mm)
+// 📚 APPLIANCE DATABASE (Dims in mm)
 // ==========================================
-const BOILER_DATABASE = [
-    // --- WORCESTER BOSCH ---
-    { 
-        id: "wb_4000", 
-        label: "Worcester Greenstar 4000 (System/Combi)", 
-        dims: { w: 400, h: 724, d: 310 },
-        clearances: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } 
-    },
-    { 
-        id: "wb_8000", 
-        label: "Worcester Greenstar 8000 (Life/Style)", 
-        dims: { w: 440, h: 780, d: 365 },
-        clearances: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } 
-    },
-    { 
-        id: "wb_ri_compact", 
-        label: "Worcester Greenstar Ri (Compact)", 
-        dims: { w: 390, h: 600, d: 270 },
-        clearances: { top: 30, bottom: 200, left: 5, right: 5, front: 600 } 
-    },
-    { 
-        id: "wb_cdi_compact", 
-        label: "Worcester Greenstar CDi Compact", 
-        dims: { w: 390, h: 690, d: 280 },
-        clearances: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } 
-    },
+const APPLIANCE_DB = [
+    // --- FLUES ---
+    { id: "flue", category: "flue", label: "Standard Round Terminal", type: "flue", radius: 50, clearance: 300 },
 
-    // --- IDEAL ---
-    { 
-        id: "ideal_logic", 
-        label: "Ideal Logic+ / Max (All Types)", 
-        dims: { w: 395, h: 700, d: 278 },
-        clearances: { top: 100, bottom: 100, left: 2.5, right: 2.5, front: 450 } 
-    },
+    // --- BOILERS ---
+    { id: "wb_4000", category: "boiler", label: "Worcester 4000 (Combi/System)", w: 400, h: 724, clearance: 200 },
+    { id: "wb_8000", category: "boiler", label: "Worcester 8000 (Life/Style)", w: 440, h: 780, clearance: 200 },
+    { id: "wb_ri",   category: "boiler", label: "Worcester Ri Compact", w: 390, h: 600, clearance: 200 },
+    { id: "wb_cdi",  category: "boiler", label: "Worcester CDi Compact", w: 390, h: 690, clearance: 200 },
+    { id: "ideal_logic", category: "boiler", label: "Ideal Logic+ / Max", w: 395, h: 700, clearance: 100 },
+    { id: "vaillant_pro", category: "boiler", label: "Vaillant ecoTEC Pro", w: 440, h: 720, clearance: 165 },
+    { id: "vaillant_pure", category: "boiler", label: "Vaillant ecoTEC Pure", w: 390, h: 700, clearance: 150 },
+    { id: "glowworm", category: "boiler", label: "Glow-worm Energy", w: 390, h: 700, clearance: 150 },
+    { id: "viessmann_050", category: "boiler", label: "Viessmann 050-W", w: 400, h: 700, clearance: 350 },
 
-    // --- VAILLANT ---
-    { 
-        id: "vaillant_pure", 
-        label: "Vaillant ecoTEC Pure (Combi/System)", 
-        dims: { w: 390, h: 700, d: 295 },
-        clearances: { top: 150, bottom: 150, left: 5, right: 5, front: 500 } 
-    },
-    { 
-        id: "vaillant_pro", 
-        label: "Vaillant ecoTEC Pro (Combi/System)", 
-        dims: { w: 440, h: 720, d: 338 },
-        clearances: { top: 165, bottom: 180, left: 5, right: 5, front: 500 } 
-    },
-    { 
-        id: "vaillant_exclusive", 
-        label: "Vaillant ecoTEC Exclusive", 
-        dims: { w: 440, h: 720, d: 406 },
-        clearances: { top: 165, bottom: 180, left: 5, right: 5, front: 500 } 
-    },
-
-    // --- GLOW-WORM ---
-    { 
-        id: "glowworm_energy_cs", 
-        label: "Glow-worm Energy (Combi/System)", 
-        dims: { w: 390, h: 700, d: 280 },
-        clearances: { top: 150, bottom: 150, left: 5, right: 5, front: 600 } 
-    },
-    { 
-        id: "glowworm_energy_r", 
-        label: "Glow-worm Energy (Regular)", 
-        dims: { w: 375, h: 600, d: 280 },
-        clearances: { top: 150, bottom: 150, left: 5, right: 5, front: 600 } 
-    },
-
-    // --- VIESSMANN ---
-    { 
-        id: "viessmann_050", 
-        label: "Viessmann Vitodens 050-W", 
-        dims: { w: 400, h: 700, d: 300 },
-        clearances: { top: 350, bottom: 350, left: 0, right: 0, front: 700 } 
-    },
-    { 
-        id: "viessmann_100", 
-        label: "Viessmann Vitodens 100-W", 
-        dims: { w: 400, h: 700, d: 360 },
-        clearances: { top: 350, bottom: 350, left: 0, right: 0, front: 700 } 
-    }
+    // --- RADIATORS ---
+    { id: "rad_600_1000", category: "radiator", label: "Type 22 (600x1000)", w: 1000, h: 600, clearance: 150 },
+    { id: "rad_600_600",  category: "radiator", label: "Type 22 (600x600)", w: 600, h: 600, clearance: 150 },
+    
+    // --- CYLINDERS ---
+    { id: "cyl_std",  category: "cylinder", label: "Standard (150L)", w: 550, h: 1045, clearance: 300 },
+    { id: "cyl_slim", category: "cylinder", label: "Slimline (150L)", w: 475, h: 1300, clearance: 300 }
 ];
 
 class VisionSystem {
@@ -307,21 +249,35 @@ class GraphicsEngine {
         this.stencil = null;
     }
 
-    setStencil(boilerConfig) {
-        if(!boilerConfig || !boilerConfig.dims) {
-            console.error('Invalid boiler configuration');
+    setStencil(applianceConfig) {
+        if(!applianceConfig) {
+            console.error('Invalid appliance configuration');
             return;
         }
         
         if(this.stencil) this.root.remove(this.stencil);
         this.stencil = new THREE.Group();
         
-        // Boiler Box with specific dimensions
-        // Using actual depth for accurate 3D representation in AR overlay
-        const geo = new THREE.BoxGeometry(boilerConfig.dims.w, boilerConfig.dims.h, boilerConfig.dims.d);
-        const mat = new THREE.MeshBasicMaterial({color:0x2563eb, opacity:0.8, transparent:true});
-        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0xffffff}));
-        this.stencil.add(new THREE.Mesh(geo, mat), edges);
+        // Handle different appliance types
+        if(applianceConfig.category === 'flue') {
+            // For flues, use radius to create a cylinder
+            const radius = applianceConfig.radius || 50;
+            const height = 200; // Default height for visualization
+            const geo = new THREE.CylinderGeometry(radius, radius, height, 32);
+            const mat = new THREE.MeshBasicMaterial({color:0x2563eb, opacity:0.8, transparent:true});
+            const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0xffffff}));
+            this.stencil.add(new THREE.Mesh(geo, mat), edges);
+        } else {
+            // For boilers, radiators, cylinders - use box geometry
+            const w = applianceConfig.w || 400;
+            const h = applianceConfig.h || 700;
+            const d = 300; // Default depth for visualization
+            
+            const geo = new THREE.BoxGeometry(w, h, d);
+            const mat = new THREE.MeshBasicMaterial({color:0x2563eb, opacity:0.8, transparent:true});
+            const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0xffffff}));
+            this.stencil.add(new THREE.Mesh(geo, mat), edges);
+        }
         
         this.stencil.position.x = 200; // Offset
         this.root.add(this.stencil);
@@ -336,39 +292,40 @@ const App = {
     currentBoilerConfig: null,
     
     onCvLoaded: function() { 
+        // When CV loads, populate the dropdown for the first time
+        // (Defaulting to 'boiler' which is first in the HTML list)
+        this.updateModels(); 
         console.log("CV Ready");
-        this.populateBoilerDropdown();
     },
-    
-    populateBoilerDropdown: function() {
-        const dropdown = document.getElementById('input-type');
-        // Only populate if not already populated
-        if(dropdown.options.length > 0) return;
+
+    // NEW FUNCTION: Filters the list based on category
+    updateModels: function() {
+        const category = document.getElementById('input-category').value;
+        const modelSelect = document.getElementById('input-type');
         
-        BOILER_DATABASE.forEach(boiler => {
-            const option = document.createElement('option');
-            option.value = boiler.id;
-            option.textContent = boiler.label;
-            dropdown.appendChild(option);
+        // Clear existing options
+        modelSelect.innerHTML = "";
+
+        // Filter DB and create new options
+        APPLIANCE_DB.filter(item => item.category === category).forEach((item) => {
+            const opt = document.createElement('option');
+            // We store the array INDEX as the value so we can look it up easily later
+            opt.value = APPLIANCE_DB.indexOf(item); 
+            opt.text = item.label;
+            modelSelect.appendChild(opt);
         });
-        
-        // Set the current boiler config to the first item
-        this.currentBoilerConfig = BOILER_DATABASE[0];
     },
     
     start: async function() {
         // UI
         this.markerSize = parseInt(document.getElementById('input-size').value);
-        const selectedBoilerId = document.getElementById('input-type').value;
-        this.currentBoilerConfig = BOILER_DATABASE.find(b => b.id === selectedBoilerId) || BOILER_DATABASE[0];
-        const debug = document.getElementById('debug-mode').checked;
+        const selectedIndex = parseInt(document.getElementById('input-type').value);
+        this.currentBoilerConfig = APPLIANCE_DB[selectedIndex];
         
         document.getElementById('menu-panel').classList.add('hidden');
         document.getElementById('controls-panel').classList.remove('hidden');
         document.getElementById('status-pill').classList.remove('hidden');
         document.getElementById('status-pill').textContent = "🔍 Finding Marker...";
-
-        if(debug) document.getElementById('debug-layer').classList.remove('hidden');
 
         // Video
         const video = document.getElementById('camera-layer');
@@ -440,11 +397,6 @@ const App = {
         document.getElementById('result-panel').classList.remove('hidden');
     }
 };
-
-// Populate dropdown on page load
-document.addEventListener('DOMContentLoaded', function() {
-    App.populateBoilerDropdown();
-});
 </script>
 </body>
 </html>
