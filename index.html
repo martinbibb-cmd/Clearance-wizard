@@ -3,39 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clearance Genie: Debug Edition</title>
+    <title>Clearance Genie: Final</title>
     
     <script async src="https://docs.opencv.org/4.5.2/opencv.js" onload="App.onCvLoaded()"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <style>
-        :root { --primary: #2563eb; --danger: #dc2626; --success: #16a34a; }
-        body { margin: 0; background: #000; font-family: sans-serif; overflow: hidden; }
+        :root { --wb-blue: #005eb8; --wb-red: #e30613; }
+        body { margin: 0; background: #000; font-family: -apple-system, system-ui, sans-serif; overflow: hidden; }
         
-        /* LAYERS */
         #camera-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
-        #debug-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; z-index: 2; opacity: 0.8; pointer-events: none; }
-        #ar-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
-        
-        /* UI */
+        #ar-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: flex; flex-direction: column; pointer-events: none; }
+        
         .interactive { pointer-events: auto; }
-        .card { background: rgba(255,255,255,0.95); padding: 20px; border-radius: 16px; margin: 20px; max-width: 400px; align-self: center; }
+        .card { background: rgba(255,255,255,0.95); padding: 20px; border-radius: 12px; margin: 20px auto; width: 90%; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
         .hidden { display: none !important; }
         
-        button { width: 100%; padding: 15px; border-radius: 8px; border: none; background: var(--primary); color: white; font-weight: bold; font-size: 1rem; margin-top: 10px; }
-        select { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 8px; font-size: 1rem; }
+        h1 { margin: 0 0 15px 0; font-size: 1.2rem; color: #333; text-align: center; }
+        label { display: block; font-size: 0.8rem; color: #666; margin-bottom: 5px; font-weight: 700; text-transform: uppercase; }
+        select, button { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 15px; font-size: 1rem; background: white; }
         
-        /* TOGGLE */
-        .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+        button.primary { background: var(--wb-blue); color: white; border: none; font-weight: 600; }
         
-        /* STATUS */
-        #status-pill { align-self: center; margin-top: 20px; padding: 8px 16px; border-radius: 20px; background: rgba(0,0,0,0.8); color: white; font-weight: bold; transition: background 0.3s; }
-        #status-pill.locked { background: var(--success); }
-        
-        /* CONTROLS */
-        .controls { margin-top: auto; padding: 20px; display: flex; gap: 10px; justify-content: center; }
-        .btn-small { flex: 1; max-width: 150px; }
+        #status-pill { 
+            align-self: center; margin-top: 50px; padding: 10px 25px; border-radius: 30px; 
+            font-size: 0.9rem; font-weight: 600; background: rgba(255,255,255,0.9); color: #333;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
+        }
+        #status-pill.locked { background: var(--wb-red); color: white; }
+
+        .control-bar { margin-top: auto; padding: 20px; display: flex; gap: 15px; justify-content: center; background: linear-gradient(to top, rgba(0,0,0,0.5), transparent); }
+        .btn-round { width: 60px; height: 60px; border-radius: 50%; border: none; font-size: 1.5rem; background: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; }
         
         #touch-pad { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; touch-action: none; }
     </style>
@@ -43,7 +42,6 @@
 <body>
 
     <video id="camera-layer" autoplay playsinline muted></video>
-    <canvas id="debug-layer" class="hidden"></canvas>
     <canvas id="ar-layer"></canvas>
     <div id="touch-pad"></div>
 
@@ -51,129 +49,54 @@
         <div id="status-pill" class="hidden">Initializing...</div>
 
         <div id="menu-panel" class="card interactive">
-            <h2 style="margin-top:0;">🔥 Clearance Genie</h2>
+            <h1>🔥 Clearance Genie</h1>
             
-            <label for="input-type">Boiler Model</label>
-            <select id="input-type">
-                <!-- Populated dynamically from BOILER_DATABASE -->
-            </select>
-
-            <label for="input-size">Marker Size</label>
+            <label>1. Marker Size (Check Paper!)</label>
             <select id="input-size">
-                <option value="53">Credit Card (53mm)</option>
-                <option value="100">100mm Standard</option>
-                <option value="160">A4 Safe (160mm)</option>
+                <option value="45">45mm (Small Square)</option>
+                <option value="53">53mm (Credit Card)</option>
+                <option value="160">160mm (A4 Safe)</option>
             </select>
-            
-            <div class="toggle-row">
-                <label for="debug-mode">Show Computer Vision?</label>
-                <input type="checkbox" id="debug-mode" style="width:25px; height:25px;">
-            </div>
 
-            <button onclick="App.start()">Start Camera</button>
+            <label>2. Appliance Model</label>
+            <select id="input-type">
+                </select>
+
+            <button class="primary" onclick="App.startSession()">Start Camera</button>
         </div>
 
-        <div id="controls-panel" class="controls interactive hidden">
-            <button class="btn-small" style="background:#64748b" onclick="App.reset()">↺ Reset</button>
-            <button class="btn-small" onclick="App.lock()">🔒 Lock</button>
+        <div id="controls-panel" class="control-bar interactive hidden">
+            <button class="btn-round" onclick="App.resetObject()">↺</button>
+            <button class="btn-round" style="background: var(--wb-blue); color: white;" onclick="App.lockView()">🔒</button>
         </div>
-        
-        <div id="result-panel" class="controls interactive hidden">
-            <button class="btn-small" onclick="location.reload()">New Scan</button>
+
+        <div id="result-panel" class="control-bar interactive hidden">
+            <button class="primary" style="max-width:200px;" onclick="location.reload()">New Check</button>
         </div>
     </div>
 
 <script>
 // ==========================================
-// 📚 BOILER DATABASE (Dims in mm)
+// 📚 DATA: BOILER DATABASE
 // ==========================================
-const BOILER_DATABASE = [
-    // --- WORCESTER BOSCH ---
-    { 
-        id: "wb_4000", 
-        label: "Worcester Greenstar 4000 (System/Combi)", 
-        dims: { w: 400, h: 724, d: 310 },
-        clearances: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } 
-    },
-    { 
-        id: "wb_8000", 
-        label: "Worcester Greenstar 8000 (Life/Style)", 
-        dims: { w: 440, h: 780, d: 365 },
-        clearances: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } 
-    },
-    { 
-        id: "wb_ri_compact", 
-        label: "Worcester Greenstar Ri (Compact)", 
-        dims: { w: 390, h: 600, d: 270 },
-        clearances: { top: 30, bottom: 200, left: 5, right: 5, front: 600 } 
-    },
-    { 
-        id: "wb_cdi_compact", 
-        label: "Worcester Greenstar CDi Compact", 
-        dims: { w: 390, h: 690, d: 280 },
-        clearances: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } 
-    },
-
-    // --- IDEAL ---
-    { 
-        id: "ideal_logic", 
-        label: "Ideal Logic+ / Max (All Types)", 
-        dims: { w: 395, h: 700, d: 278 },
-        clearances: { top: 100, bottom: 100, left: 2.5, right: 2.5, front: 450 } 
-    },
-
-    // --- VAILLANT ---
-    { 
-        id: "vaillant_pure", 
-        label: "Vaillant ecoTEC Pure (Combi/System)", 
-        dims: { w: 390, h: 700, d: 295 },
-        clearances: { top: 150, bottom: 150, left: 5, right: 5, front: 500 } 
-    },
-    { 
-        id: "vaillant_pro", 
-        label: "Vaillant ecoTEC Pro (Combi/System)", 
-        dims: { w: 440, h: 720, d: 338 },
-        clearances: { top: 165, bottom: 180, left: 5, right: 5, front: 500 } 
-    },
-    { 
-        id: "vaillant_exclusive", 
-        label: "Vaillant ecoTEC Exclusive", 
-        dims: { w: 440, h: 720, d: 406 },
-        clearances: { top: 165, bottom: 180, left: 5, right: 5, front: 500 } 
-    },
-
-    // --- GLOW-WORM ---
-    { 
-        id: "glowworm_energy_cs", 
-        label: "Glow-worm Energy (Combi/System)", 
-        dims: { w: 390, h: 700, d: 280 },
-        clearances: { top: 150, bottom: 150, left: 5, right: 5, front: 600 } 
-    },
-    { 
-        id: "glowworm_energy_r", 
-        label: "Glow-worm Energy (Regular)", 
-        dims: { w: 375, h: 600, d: 280 },
-        clearances: { top: 150, bottom: 150, left: 5, right: 5, front: 600 } 
-    },
-
-    // --- VIESSMANN ---
-    { 
-        id: "viessmann_050", 
-        label: "Viessmann Vitodens 050-W", 
-        dims: { w: 400, h: 700, d: 300 },
-        clearances: { top: 350, bottom: 350, left: 0, right: 0, front: 700 } 
-    },
-    { 
-        id: "viessmann_100", 
-        label: "Viessmann Vitodens 100-W", 
-        dims: { w: 400, h: 700, d: 360 },
-        clearances: { top: 350, bottom: 350, left: 0, right: 0, front: 700 } 
-    }
+const BOILER_DB = [
+    { id: "wb_4000", label: "Worcester 4000 (Combi/System)", w: 400, h: 724, clearance: 200 },
+    { id: "wb_8000", label: "Worcester 8000 (Life/Style)", w: 440, h: 780, clearance: 200 },
+    { id: "wb_ri", label: "Worcester Ri Compact", w: 390, h: 600, clearance: 200 },
+    { id: "wb_cdi", label: "Worcester CDi Compact", w: 390, h: 690, clearance: 200 },
+    { id: "ideal_logic", label: "Ideal Logic+ / Max", w: 395, h: 700, clearance: 100 },
+    { id: "vaillant_pro", label: "Vaillant ecoTEC Pro", w: 440, h: 720, clearance: 165 },
+    { id: "vaillant_pure", label: "Vaillant ecoTEC Pure", w: 390, h: 700, clearance: 150 },
+    { id: "glowworm", label: "Glow-worm Energy", w: 390, h: 700, clearance: 150 },
+    { id: "viessmann_050", label: "Viessmann 050-W", w: 400, h: 700, clearance: 350 },
+    { id: "flue", label: "Flue Terminal (Standard)", type: "flue", radius: 50, clearance: 300 }
 ];
 
+// ==========================================
+// 👁️ VISION SYSTEM (Relaxed)
+// ==========================================
 class VisionSystem {
     constructor() { this.ready = false; }
-    
     init(video) {
         this.src = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
         this.gray = new cv.Mat();
@@ -183,15 +106,12 @@ class VisionSystem {
         this.ready = true;
     }
 
-    findMarker(video, debugCanvas) {
+    findMarker(video, markerSize) {
         if(!this.ready) return null;
-
-        // 1. Process at lower res for speed
         const scale = 0.5;
         const w = video.videoWidth * scale;
         const h = video.videoHeight * scale;
 
-        // Draw video to temp canvas
         if(!this._ctx) {
             const c = document.createElement('canvas');
             c.width = w; c.height = h;
@@ -199,19 +119,10 @@ class VisionSystem {
         }
         this._ctx.drawImage(video, 0, 0, w, h);
         
-        // OpenCV Processing
         this.src.data.set(this._ctx.getImageData(0,0,w,h).data);
         cv.cvtColor(this.src, this.gray, cv.COLOR_RGBA2GRAY);
-        
-        // ADAPTIVE THRESHOLD (The key to lighting independence)
-        // Block Size 41, Constant 2 -> Smooths lighting noise for stable contours
-        cv.adaptiveThreshold(this.gray, this.binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 41, 2);
-
-        // DEBUG VIEW: Show what computer sees if requested
-        if(debugCanvas && !debugCanvas.classList.contains('hidden')) {
-            cv.imshow(debugCanvas, this.binary);
-        }
-
+        // Smoother threshold to accept lower contrast
+        cv.adaptiveThreshold(this.gray, this.binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 31, 2);
         cv.findContours(this.binary, this.contours, this.hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
         let bestPose = null;
@@ -220,21 +131,14 @@ class VisionSystem {
         for (let i = 0; i < this.contours.size(); ++i) {
             let cnt = this.contours.get(i);
             let area = cv.contourArea(cnt);
-
-            // Filter by Area
-            if (area > 1000 && area < (w*h)*0.8) {
+            if (area > 500 && area < (w*h)*0.9) {
                 let peri = cv.arcLength(cnt, true);
                 let approx = new cv.Mat();
-                cv.approxPolyDP(cnt, approx, 0.05 * peri, true);
-
+                cv.approxPolyDP(cnt, approx, 0.04 * peri, true);
                 if (approx.rows === 4 && cv.isContourConvex(approx)) {
-                    // CONTRAST CHECK: Look at the GRAYSCALE image for intensity
-                    // Accept dark pixels (< 80) to handle real-world lighting
-                    if(this._checkGrayscaleContrast(approx, w, h)) {
-                        if (area > maxArea) {
-                            maxArea = area;
-                            bestPose = this._getPose(approx, video.videoWidth, video.videoHeight, scale);
-                        }
+                    if (area > maxArea) {
+                        maxArea = area;
+                        bestPose = this._getPose(approx, video.videoWidth, video.videoHeight, scale, markerSize);
                     }
                 }
                 approx.delete();
@@ -243,145 +147,119 @@ class VisionSystem {
         return bestPose;
     }
 
-    _checkGrayscaleContrast(approx, w, h) {
-        // Sample inside the corners of the GRAYSCALE image
-        // We expect dark pixels (< 80) to handle real-world lighting
-        let darkHits = 0;
-        const pts = [];
-        let cx=0, cy=0;
-        
-        for(let j=0; j<8; j+=2) {
-            pts.push({x: approx.data32S[j], y: approx.data32S[j+1]});
-            cx += approx.data32S[j];
-            cy += approx.data32S[j+1];
-        }
-        cx/=4; cy/=4;
-
-        for(let k=0; k<4; k++) {
-            // Move 20% inwards from corner
-            const sx = Math.round(pts[k].x + (cx - pts[k].x) * 0.2);
-            const sy = Math.round(pts[k].y + (cy - pts[k].y) * 0.2);
-            
-            if(sx>=0 && sx<w && sy>=0 && sy<h) {
-                // Check grayscale intensity - accept dark pixels (< 80)
-                if(this.gray.ucharAt(sy, sx) < 80) darkHits++;
-            }
-        }
-        // If 3 or 4 corners are dark inside, it's a marker!
-        return darkHits >= 3;
-    }
-
-    _getPose(approx, vw, vh, scale) {
-        // Unscale coords
+    _getPose(approx, vw, vh, scale, markerSize) {
         const c = [];
         for(let j=0; j<8; j+=2) c.push({x: approx.data32S[j]/scale, y: approx.data32S[j+1]/scale});
-        
-        // Calc Pose
         const wPx = (Math.hypot(c[0].x-c[1].x, c[0].y-c[1].y) + Math.hypot(c[2].x-c[3].x, c[2].y-c[3].y)) / 2;
-        const vFovRad = 70 * Math.PI / 180;
+        const vFovRad = 60 * Math.PI / 180;
         const focal = (vh / 2) / Math.tan(vFovRad / 2);
-        
-        // Z Depth
-        const z = -(App.markerSize * focal) / wPx;
-        
-        // XY
+        const z = -(markerSize * focal) / wPx;
         const cx = (c[0].x + c[2].x) / 2;
         const cy = (c[0].y + c[2].y) / 2;
         const x = (cx - vw/2) * (Math.abs(z)/focal);
         const y = (cy - vh/2) * (Math.abs(z)/focal) * -1;
-
         return { x, y, z };
     }
 }
 
+// ==========================================
+// 🎨 GRAPHICS (Technical Stencils)
+// ==========================================
 class GraphicsEngine {
     constructor(canvas) {
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 1000);
-        this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
+        this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        
-        this.scene.add(new THREE.AmbientLight(0xffffff, 1));
         this.root = new THREE.Group();
         this.scene.add(this.root);
         this.stencil = null;
     }
 
-    setStencil(boilerConfig) {
-        if(!boilerConfig || !boilerConfig.dims) {
-            console.error('Invalid boiler configuration');
-            return;
-        }
-        
+    setStencil(data) {
         if(this.stencil) this.root.remove(this.stencil);
         this.stencil = new THREE.Group();
         
-        // Boiler Box with specific dimensions
-        // Using actual depth for accurate 3D representation in AR overlay
-        const geo = new THREE.BoxGeometry(boilerConfig.dims.w, boilerConfig.dims.h, boilerConfig.dims.d);
-        const mat = new THREE.MeshBasicMaterial({color:0x2563eb, opacity:0.8, transparent:true});
-        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0xffffff}));
-        this.stencil.add(new THREE.Mesh(geo, mat), edges);
+        if(data.type === 'flue') {
+            this._createRadial(data);
+        } else {
+            this._createBox(data);
+        }
         
-        this.stencil.position.x = 200; // Offset
+        this.stencil.position.x = 150; 
         this.root.add(this.stencil);
     }
+
+    _createBox(data) {
+        // Boiler Blue Line
+        const boxGeo = new THREE.BoxGeometry(data.w, data.h, 5);
+        const boxEdges = new THREE.EdgesGeometry(boxGeo);
+        this.stencil.add(new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x005eb8, linewidth: 2 })));
+
+        // Clearance Red Dashed
+        const c = data.clearance;
+        const zW = data.w + (c*2);
+        const zH = data.h + (c*2);
+        const zoneGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(zW, zH, 5));
+        this.stencil.add(new THREE.LineSegments(zoneGeo, new THREE.LineBasicMaterial({ color: 0xe30613 })));
+
+        // Hatching
+        const points = [];
+        const startX = -zW/2, endX = zW/2, startY = -zH/2, endY = zH/2;
+        for(let x = startX; x < endX + zH; x += 40) {
+            points.push(new THREE.Vector3(x, startY, -10));
+            points.push(new THREE.Vector3(x - zH, endY, -10));
+        }
+        const hatchMat = new THREE.LineBasicMaterial({ color: 0xe30613, opacity: 0.3, transparent: true });
+        this.stencil.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), hatchMat));
+    }
+
+    _createRadial(data) {
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0, data.radius, 32), new THREE.MeshBasicMaterial({color:0x333333}));
+        const zone = new THREE.Mesh(new THREE.RingGeometry(data.radius, data.clearance, 32), new THREE.MeshBasicMaterial({color:0xe30613, opacity:0.3, transparent:true, side:THREE.DoubleSide}));
+        this.stencil.add(ring, zone);
+    }
+
     render() { this.renderer.render(this.scene, this.camera); }
 }
 
+// ==========================================
+// 📱 CONTROLLER
+// ==========================================
 const App = {
-    markerSize: 53,
+    markerSize: 45,
     vision: new VisionSystem(),
     graphics: null,
-    currentBoilerConfig: null,
-    
+    locked: false,
+
     onCvLoaded: function() { 
-        console.log("CV Ready");
-        this.populateBoilerDropdown();
-    },
-    
-    populateBoilerDropdown: function() {
-        const dropdown = document.getElementById('input-type');
-        // Only populate if not already populated
-        if(dropdown.options.length > 0) return;
-        
-        BOILER_DATABASE.forEach(boiler => {
-            const option = document.createElement('option');
-            option.value = boiler.id;
-            option.textContent = boiler.label;
-            dropdown.appendChild(option);
+        const sel = document.getElementById('input-type');
+        BOILER_DB.forEach((b, i) => {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.text = b.label;
+            sel.appendChild(opt);
         });
-        
-        // Set the current boiler config to the first item
-        this.currentBoilerConfig = BOILER_DATABASE[0];
     },
-    
-    start: async function() {
-        // UI
+
+    startSession: async function() {
         this.markerSize = parseInt(document.getElementById('input-size').value);
-        const selectedBoilerId = document.getElementById('input-type').value;
-        this.currentBoilerConfig = BOILER_DATABASE.find(b => b.id === selectedBoilerId) || BOILER_DATABASE[0];
-        const debug = document.getElementById('debug-mode').checked;
-        
+        const index = document.getElementById('input-type').value;
+        const data = BOILER_DB[index];
+
         document.getElementById('menu-panel').classList.add('hidden');
         document.getElementById('controls-panel').classList.remove('hidden');
         document.getElementById('status-pill').classList.remove('hidden');
-        document.getElementById('status-pill').textContent = "🔍 Finding Marker...";
+        document.getElementById('status-pill').textContent = "🔍 Point at Marker...";
 
-        if(debug) document.getElementById('debug-layer').classList.remove('hidden');
-
-        // Video
         const video = document.getElementById('camera-layer');
         video.srcObject = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: 'environment', width: { ideal: 1280 } } 
         });
-        
-        // Graphics
-        this.graphics = new GraphicsEngine(document.getElementById('ar-layer'));
-        this.graphics.setStencil(this.currentBoilerConfig);
-        this.setupTouch();
 
-        // Loop
+        this.graphics = new GraphicsEngine(document.getElementById('ar-layer'));
+        this.graphics.setStencil(data);
+        this.setupTouch();
         this.vision.init(video);
         this.loop();
     },
@@ -391,60 +269,49 @@ const App = {
         const video = document.getElementById('camera-layer');
         if(video.readyState !== 4) return;
         
-        // 1. Graphics
         this.graphics.render();
-        
-        // 2. Vision
-        const debugCanvas = document.getElementById('debug-layer');
-        const pose = this.vision.findMarker(video, debugCanvas);
-        
-        if(pose) {
-            // Smooth LERP
-            const target = this.graphics.root.position;
-            target.x += (pose.x - target.x) * 0.2;
-            target.y += (pose.y - target.y) * 0.2;
-            target.z += (pose.z - target.z) * 0.2;
-            
-            document.getElementById('status-pill').textContent = "✓ Locked";
-            document.getElementById('status-pill').className = "locked";
-        } else {
-            document.getElementById('status-pill').textContent = "🔍 Searching...";
-            document.getElementById('status-pill').className = "";
+
+        if(!this.locked) {
+            const pose = this.vision.findMarker(video, this.markerSize);
+            if(pose) {
+                const t = this.graphics.root.position;
+                t.x += (pose.x - t.x) * 0.2;
+                t.y += (pose.y - t.y) * 0.2;
+                t.z += (pose.z - t.z) * 0.2;
+                document.getElementById('status-pill').textContent = "✓ Locked";
+                document.getElementById('status-pill').className = "locked";
+            } else {
+                document.getElementById('status-pill').textContent = "🔍 Looking...";
+                document.getElementById('status-pill').className = "";
+            }
         }
     },
 
     setupTouch: function() {
-        const t = document.getElementById('touch-pad');
+        const pad = document.getElementById('touch-pad');
         let drag=false, sx=0, sy=0, ox=0, oy=0;
-        
-        t.addEventListener('touchstart', e => {
+        pad.addEventListener('touchstart', e => {
+            if(this.locked) return;
             drag=true; sx=e.touches[0].clientX; sy=e.touches[0].clientY;
             ox=this.graphics.stencil.position.x; oy=this.graphics.stencil.position.y;
         });
-        
-        t.addEventListener('touchmove', e => {
+        pad.addEventListener('touchmove', e => {
             if(!drag) return;
-            const cx=e.touches[0].clientX; const cy=e.touches[0].clientY;
-            const scale = Math.abs(this.graphics.root.position.z)/1000 * 2;
-            this.graphics.stencil.position.x = ox + (cx-sx)*scale;
-            this.graphics.stencil.position.y = oy - (cy-sy)*scale;
+            const scale = Math.abs(this.graphics.root.position.z)/1000 * 2.5;
+            this.graphics.stencil.position.x = ox + (e.touches[0].clientX-sx)*scale;
+            this.graphics.stencil.position.y = oy - (e.touches[0].clientY-sy)*scale;
         });
-        
-        t.addEventListener('touchend', () => drag=false);
+        pad.addEventListener('touchend', () => drag=false);
     },
 
-    reset: function() { this.graphics.stencil.position.set(200,0,0); },
-    lock: function() { 
+    lockView: function() {
+        this.locked = true;
         document.getElementById('camera-layer').pause();
         document.getElementById('controls-panel').classList.add('hidden');
         document.getElementById('result-panel').classList.remove('hidden');
-    }
+    },
+    resetObject: function() { this.graphics.stencil.position.set(150,0,0); }
 };
-
-// Populate dropdown on page load
-document.addEventListener('DOMContentLoaded', function() {
-    App.populateBoilerDropdown();
-});
 </script>
 </body>
 </html>
