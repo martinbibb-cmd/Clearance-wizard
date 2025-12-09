@@ -3,219 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clearance Genie Pro</title>
+    <title>Clearance Genie: Debug Edition</title>
     
     <script async src="https://docs.opencv.org/4.5.2/opencv.js" onload="App.onCvLoaded()"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <style>
-        :root { --primary: #2563eb; --danger: #dc2626; --success: #16a34a; --surface: #ffffff; }
-        body { margin: 0; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+        :root { --primary: #2563eb; --danger: #dc2626; --success: #16a34a; }
+        body { margin: 0; background: #000; font-family: sans-serif; overflow: hidden; }
         
         /* LAYERS */
         #camera-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
-        #ar-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: flex; flex-direction: column; pointer-events: none; }
+        #debug-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; z-index: 2; opacity: 0.8; pointer-events: none; }
+        #ar-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
         
-        /* UI COMPONENTS */
+        /* UI */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: flex; flex-direction: column; pointer-events: none; }
         .interactive { pointer-events: auto; }
-        .card { background: rgba(255,255,255,0.95); padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin: 20px; backdrop-filter: blur(5px); max-width: 400px; align-self: center; }
+        .card { background: rgba(255,255,255,0.95); padding: 20px; border-radius: 16px; margin: 20px; max-width: 400px; align-self: center; }
         .hidden { display: none !important; }
         
-        h1 { margin: 0 0 15px 0; font-size: 1.25rem; color: #1e293b; text-align: center; }
-        label { display: block; font-size: 0.85rem; color: #64748b; margin-bottom: 5px; font-weight: 600; }
-        select, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 15px; font-size: 1rem; background: white; }
+        button { width: 100%; padding: 15px; border-radius: 8px; border: none; background: var(--primary); color: white; font-weight: bold; font-size: 1rem; margin-top: 10px; }
+        select { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 8px; font-size: 1rem; }
         
-        button.primary { background: var(--primary); color: white; border: none; font-weight: 600; box-shadow: 0 2px 10px rgba(37,99,235,0.3); }
-        button.secondary { background: #f1f5f9; color: #334155; border: none; font-weight: 600; }
+        /* TOGGLE */
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
         
-        /* STATUS BADGE */
-        #status-pill {
-            align-self: center; margin-top: 15px; padding: 8px 16px; border-radius: 20px; 
-            font-size: 0.85rem; font-weight: 600; background: rgba(0,0,0,0.8); color: white;
-            transition: all 0.3s ease;
-        }
+        /* STATUS */
+        #status-pill { align-self: center; margin-top: 20px; padding: 8px 16px; border-radius: 20px; background: rgba(0,0,0,0.8); color: white; font-weight: bold; transition: background 0.3s; }
         #status-pill.locked { background: var(--success); }
-        #status-pill.searching { background: #f59e0b; color: black; }
         
-        /* BOTTOM CONTROLS */
-        .control-bar { margin-top: auto; padding: 20px; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); display: flex; gap: 10px; justify-content: center; }
-        .control-btn { flex: 1; padding: 15px; border-radius: 12px; border: none; font-weight: 600; max-width: 150px; }
+        /* CONTROLS */
+        .controls { margin-top: auto; padding: 20px; display: flex; gap: 10px; justify-content: center; }
+        .btn-small { flex: 1; max-width: 150px; }
         
-        /* TOUCH PAD */
         #touch-pad { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; touch-action: none; }
     </style>
 </head>
 <body>
 
     <video id="camera-layer" autoplay playsinline muted></video>
+    <canvas id="debug-layer" class="hidden"></canvas>
     <canvas id="ar-layer"></canvas>
-    
     <div id="touch-pad"></div>
 
     <div id="ui-layer">
-        
         <div id="status-pill" class="hidden">Initializing...</div>
 
         <div id="menu-panel" class="card interactive">
-            <h1>🔥 Clearance Genie</h1>
+            <h2 style="margin-top:0;">🔥 Clearance Genie</h2>
             
-            <label>1. EQUIPMENT TYPE</label>
+            <label>Equipment Type</label>
             <select id="input-type">
-                <option value="flue">Flue Terminal (Curved)</option>
                 <option value="boiler">Boiler (Box)</option>
-                <option value="radiator">Radiator (Box)</option>
-                <option value="cylinder">Cylinder (Tall Box)</option>
+                <option value="flue">Flue (Curved)</option>
             </select>
 
-            <label>2. MARKER SIZE</label>
+            <label>Marker Size</label>
             <select id="input-size">
                 <option value="53">Credit Card (53mm)</option>
                 <option value="100">100mm Standard</option>
-                <option value="160">A4 Safe Print (160mm)</option>
+                <option value="160">A4 Safe (160mm)</option>
             </select>
+            
+            <div class="toggle-row">
+                <label for="debug-mode">Show Computer Vision?</label>
+                <input type="checkbox" id="debug-mode" style="width:25px; height:25px;">
+            </div>
 
-            <button class="primary" onclick="App.startSession()">Start Camera</button>
+            <button onclick="App.start()">Start Camera</button>
         </div>
 
-        <div id="controls-panel" class="control-bar interactive hidden">
-            <button class="control-btn secondary" onclick="App.resetObject()">↺ Reset</button>
-            <button class="control-btn primary" onclick="App.lockView()">🔒 Lock</button>
+        <div id="controls-panel" class="controls interactive hidden">
+            <button class="btn-small" style="background:#64748b" onclick="App.reset()">↺ Reset</button>
+            <button class="btn-small" onclick="App.lock()">🔒 Lock</button>
         </div>
-
-        <div id="result-panel" class="control-bar interactive hidden">
-            <button class="control-btn primary" onclick="location.reload()">New Check</button>
+        
+        <div id="result-panel" class="controls interactive hidden">
+            <button class="btn-small" onclick="location.reload()">New Scan</button>
         </div>
-
     </div>
 
 <script>
-
-/**
- * GRAPHICS ENGINE (Three.js)
- * Handles the visual "Stencils" (Curved Flues & Hatched Boilers)
- */
-class GraphicsEngine {
-    constructor(canvas) {
-        this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        
-        // Lighting
-        this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-        dirLight.position.set(0, 0, 1);
-        this.scene.add(dirLight);
-
-        // Root Anchors
-        this.markerRoot = new THREE.Group();
-        this.scene.add(this.markerRoot);
-        
-        this.stencil = null;
-    }
-
-    createStencil(type) {
-        if(this.stencil) this.markerRoot.remove(this.stencil);
-        
-        if (type === 'flue') {
-            this.stencil = this._createRadialStencil();
-        } else {
-            // Default dimensions based on type
-            let w = 400, h = 700;
-            if(type === 'radiator') { w = 1000; h = 600; }
-            if(type === 'cylinder') { w = 450; h = 1200; }
-            this.stencil = this._createBoxStencil(w, h);
-        }
-
-        // Offset slightly off the marker so it doesn't overlap perfectly
-        this.stencil.position.x = 200; 
-        this.markerRoot.add(this.stencil);
-        return this.stencil;
-    }
-
-    // 1. CURVED ZONES (For Flues)
-    _createRadialStencil() {
-        const group = new THREE.Group();
-        
-        // The Flue Center (100mm diameter)
-        const flueGeo = new THREE.RingGeometry(0, 50, 32);
-        const flueMat = new THREE.MeshBasicMaterial({ color: 0x333333, opacity: 0.8, transparent: true });
-        const flue = new THREE.Mesh(flueGeo, flueMat);
-        group.add(flue);
-
-        // Red Zone (0 - 75mm clearance) -> Radius 50 to 125
-        const redGeo = new THREE.RingGeometry(50, 125, 32);
-        const redMat = new THREE.MeshBasicMaterial({ color: 0xdc2626, opacity: 0.4, transparent: true, side: THREE.DoubleSide });
-        group.add(new THREE.Mesh(redGeo, redMat));
-
-        // Amber Zone (75mm - 300mm) -> Radius 125 to 350
-        // We use lines for a cleaner technical look
-        const amberGeo = new THREE.RingGeometry(125, 350, 32);
-        const amberEdges = new THREE.EdgesGeometry(amberGeo);
-        const amberLine = new THREE.LineSegments(amberEdges, new THREE.LineBasicMaterial({ color: 0xf59e0b }));
-        group.add(amberLine);
-
-        // Green Zone (>300mm) -> Radius 350+
-        // Just an outer ring to indicate safe space
-        const greenGeo = new THREE.RingGeometry(350, 355, 64);
-        const greenMat = new THREE.MeshBasicMaterial({ color: 0x16a34a });
-        group.add(new THREE.Mesh(greenGeo, greenMat));
-
-        return group;
-    }
-
-    // 2. BOX ZONES (For Boilers/Rads) - The "Greenstar" Style
-    _createBoxStencil(w, h) {
-        const group = new THREE.Group();
-        const clearance = 300; // Standard 300mm zone
-        
-        // Inner Box (The Appliance)
-        const boxGeo = new THREE.BoxGeometry(w, h, 10);
-        const boxEdges = new THREE.EdgesGeometry(boxGeo);
-        const boxLine = new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x2563eb, linewidth: 2 }));
-        group.add(boxLine);
-
-        // Hatching Logic (The diagonal lines)
-        const hatchMat = new THREE.LineBasicMaterial({ color: 0xdc2626, opacity: 0.3, transparent: true });
-        const points = [];
-        const zoneW = w + (clearance * 2);
-        const zoneH = h + (clearance * 2);
-        const startX = -zoneW / 2, endX = zoneW / 2;
-        const startY = -zoneH / 2, endY = zoneH / 2;
-        
-        // Create clearance boundary
-        const boundaryGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(zoneW, zoneH, 10));
-        group.add(new THREE.LineSegments(boundaryGeo, new THREE.LineBasicMaterial({ color: 0xdc2626, dashSize: 20, gapSize: 10 })));
-
-        // Draw diagonals
-        for (let x = startX; x <= endX + zoneH; x += 50) {
-            points.push(new THREE.Vector3(x, startY, -5));
-            points.push(new THREE.Vector3(x - zoneH, endY, -5));
-        }
-        group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), hatchMat));
-
-        return group;
-    }
-
-    render() {
-        this.renderer.render(this.scene, this.camera);
-    }
-}
-
-/**
- * VISION SYSTEM (OpenCV)
- * Strictly finds high-contrast squares
- */
 class VisionSystem {
-    constructor() {
-        this.ready = false;
-        this.lastPose = null;
-    }
-
+    constructor() { this.ready = false; }
+    
     init(video) {
-        this.cap = new cv.VideoCapture(video);
         this.src = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
         this.gray = new cv.Mat();
         this.binary = new cv.Mat();
@@ -224,27 +97,35 @@ class VisionSystem {
         this.ready = true;
     }
 
-    findMarker(markerSizeMM, cameraFOV, width, height) {
+    findMarker(video, debugCanvas) {
         if(!this.ready) return null;
 
-        // Downscale for speed (crucial on mobile)
+        // 1. Process at lower res for speed
         const scale = 0.5;
-        const w = width * scale;
-        const h = height * scale;
+        const w = video.videoWidth * scale;
+        const h = video.videoHeight * scale;
 
-        // Use a temp canvas to draw video frame downscaled
-        if(!this._tempCanvas) {
-            this._tempCanvas = document.createElement('canvas');
-            this._ctx = this._tempCanvas.getContext('2d', {willReadFrequently:true});
+        // Draw video to temp canvas
+        if(!this._ctx) {
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            this._ctx = c.getContext('2d', {willReadFrequently:true});
         }
-        this._tempCanvas.width = w;
-        this._tempCanvas.height = h;
-        this._ctx.drawImage(document.getElementById('camera-layer'), 0,0,w,h);
+        this._ctx.drawImage(video, 0, 0, w, h);
         
-        // Read into OpenCV
+        // OpenCV Processing
         this.src.data.set(this._ctx.getImageData(0,0,w,h).data);
         cv.cvtColor(this.src, this.gray, cv.COLOR_RGBA2GRAY);
+        
+        // ADAPTIVE THRESHOLD (The key to lighting independence)
+        // Block Size 21, Constant 2 -> Robust for squares
         cv.adaptiveThreshold(this.gray, this.binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 21, 2);
+
+        // DEBUG VIEW: Show what computer sees if requested
+        if(debugCanvas && !debugCanvas.classList.contains('hidden')) {
+            cv.imshow(debugCanvas, this.binary);
+        }
+
         cv.findContours(this.binary, this.contours, this.hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
         let bestPose = null;
@@ -254,17 +135,19 @@ class VisionSystem {
             let cnt = this.contours.get(i);
             let area = cv.contourArea(cnt);
 
+            // Filter by Area
             if (area > 1000 && area < (w*h)*0.8) {
                 let peri = cv.arcLength(cnt, true);
                 let approx = new cv.Mat();
                 cv.approxPolyDP(cnt, approx, 0.05 * peri, true);
 
                 if (approx.rows === 4 && cv.isContourConvex(approx)) {
-                    // CONTRAST GUARD: Check if inside is black
-                    if(this._checkContrast(approx, w, h)) {
+                    // CONTRAST CHECK: Look at the BINARY image, not GRAY
+                    // Binary is purely 0 (Black) or 255 (White)
+                    if(this._checkBinaryContrast(approx, w, h)) {
                         if (area > maxArea) {
                             maxArea = area;
-                            bestPose = this._calculatePose(approx, markerSizeMM, cameraFOV, width, height, scale);
+                            bestPose = this._getPose(approx, video.videoWidth, video.videoHeight, scale);
                         }
                     }
                 }
@@ -274,11 +157,12 @@ class VisionSystem {
         return bestPose;
     }
 
-    _checkContrast(approx, w, h) {
-        // Check 3/4 corners for darkness
-        let darks = 0;
-        let cx = 0, cy = 0;
+    _checkBinaryContrast(approx, w, h) {
+        // Sample inside the corners of the BINARY image
+        // We expect Black (0)
+        let blackHits = 0;
         const pts = [];
+        let cx=0, cy=0;
         
         for(let j=0; j<8; j+=2) {
             pts.push({x: approx.data32S[j], y: approx.data32S[j+1]});
@@ -288,183 +172,167 @@ class VisionSystem {
         cx/=4; cy/=4;
 
         for(let k=0; k<4; k++) {
-            // Sample 15% towards center
-            const sx = pts[k].x + (cx - pts[k].x) * 0.15;
-            const sy = pts[k].y + (cy - pts[k].y) * 0.15;
-            if(sx>0 && sx<w && sy>0 && sy<h) {
-                if(this.gray.ucharAt(sy, sx) < 100) darks++;
+            // Move 20% inwards from corner
+            const sx = Math.round(pts[k].x + (cx - pts[k].x) * 0.2);
+            const sy = Math.round(pts[k].y + (cy - pts[k].y) * 0.2);
+            
+            if(sx>=0 && sx<w && sy>=0 && sy<h) {
+                // In Binary Mat, 0 is Black. We want Black.
+                if(this.binary.ucharAt(sy, sx) === 0) blackHits++;
             }
         }
-        return darks >= 3;
+        // If 3 or 4 corners are black inside, it's a marker!
+        return blackHits >= 3;
     }
 
-    _calculatePose(approx, realSize, fov, vidW, vidH, scale) {
-        // 1. Get Corners scaled to full res
+    _getPose(approx, vw, vh, scale) {
+        // Unscale coords
         const c = [];
         for(let j=0; j<8; j+=2) c.push({x: approx.data32S[j]/scale, y: approx.data32S[j+1]/scale});
-
-        // 2. Apparent Width
-        const wPx = (Math.hypot(c[0].x-c[1].x, c[0].y-c[1].y) + Math.hypot(c[2].x-c[3].x, c[2].y-c[3].y)) / 2;
         
-        // 3. Focal Length & Z Depth
-        const vFovRad = fov * Math.PI / 180;
-        const focal = (vidH / 2) / Math.tan(vFovRad / 2);
-        const z = -(realSize * focal) / wPx;
-
-        // 4. XY Position
+        // Calc Pose
+        const wPx = (Math.hypot(c[0].x-c[1].x, c[0].y-c[1].y) + Math.hypot(c[2].x-c[3].x, c[2].y-c[3].y)) / 2;
+        const vFovRad = 70 * Math.PI / 180;
+        const focal = (vh / 2) / Math.tan(vFovRad / 2);
+        
+        // Z Depth
+        const z = -(App.markerSize * focal) / wPx;
+        
+        // XY
         const cx = (c[0].x + c[2].x) / 2;
         const cy = (c[0].y + c[2].y) / 2;
-        
-        const x = (cx - vidW/2) * (Math.abs(z)/focal);
-        const y = (cy - vidH/2) * (Math.abs(z)/focal) * -1; // Invert Y
+        const x = (cx - vw/2) * (Math.abs(z)/focal);
+        const y = (cy - vh/2) * (Math.abs(z)/focal) * -1;
 
         return { x, y, z };
     }
 }
 
-/**
- * MAIN APP CONTROLLER
- */
+class GraphicsEngine {
+    constructor(canvas) {
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 1000);
+        this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        
+        this.scene.add(new THREE.AmbientLight(0xffffff, 1));
+        this.root = new THREE.Group();
+        this.scene.add(this.root);
+        this.stencil = null;
+    }
+
+    setStencil(type) {
+        if(this.stencil) this.root.remove(this.stencil);
+        this.stencil = new THREE.Group();
+        
+        if(type === 'flue') {
+            // Flue Ring
+            const ring = new THREE.Mesh(new THREE.RingGeometry(0, 50, 32), new THREE.MeshBasicMaterial({color:0x333333}));
+            const zone = new THREE.Mesh(new THREE.RingGeometry(50, 300, 32), new THREE.MeshBasicMaterial({color:0xff0000, opacity:0.3, transparent:true}));
+            this.stencil.add(ring, zone);
+        } else {
+            // Boiler Box
+            const geo = new THREE.BoxGeometry(400, 700, 10);
+            const mat = new THREE.MeshBasicMaterial({color:0x2563eb, opacity:0.8, transparent:true});
+            const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0xffffff}));
+            this.stencil.add(new THREE.Mesh(geo, mat), edges);
+        }
+        this.stencil.position.x = 200; // Offset
+        this.root.add(this.stencil);
+    }
+    render() { this.renderer.render(this.scene, this.camera); }
+}
+
 const App = {
-    cvReady: false,
-    active: false,
-    locked: false,
-    
-    // Config
-    markerSize: 160,
-    
-    // Modules
+    markerSize: 53,
     vision: new VisionSystem(),
     graphics: null,
     
-    // State
-    lastPose: null,
-
-    onCvLoaded: function() {
-        this.cvReady = true;
-        console.log("OpenCV Ready");
-    },
-
-    startSession: async function() {
-        if(!this.cvReady) return alert("System loading...");
-        
-        // 1. Get Config
+    onCvLoaded: function() { console.log("CV Ready"); },
+    
+    start: async function() {
+        // UI
         this.markerSize = parseInt(document.getElementById('input-size').value);
         const type = document.getElementById('input-type').value;
-
-        // 2. Setup UI
+        const debug = document.getElementById('debug-mode').checked;
+        
         document.getElementById('menu-panel').classList.add('hidden');
         document.getElementById('controls-panel').classList.remove('hidden');
         document.getElementById('status-pill').classList.remove('hidden');
         document.getElementById('status-pill').textContent = "🔍 Finding Marker...";
-        document.getElementById('status-pill').className = "searching";
 
-        // 3. Setup Video
+        if(debug) document.getElementById('debug-layer').classList.remove('hidden');
+
+        // Video
         const video = document.getElementById('camera-layer');
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: 'environment', width: { ideal: 1920 } } 
+        video.srcObject = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'environment', width: { ideal: 1280 } } 
         });
-        video.srcObject = stream;
         
-        // 4. Setup Graphics
+        // Graphics
         this.graphics = new GraphicsEngine(document.getElementById('ar-layer'));
-        this.graphics.createStencil(type);
-        this.setupInteractions();
+        this.graphics.setStencil(type);
+        this.setupTouch();
 
-        // 5. Start Loop
+        // Loop
         this.vision.init(video);
-        this.active = true;
         this.loop();
     },
 
     loop: function() {
-        if(!this.active) return;
         requestAnimationFrame(this.loop.bind(this));
-
         const video = document.getElementById('camera-layer');
         if(video.readyState !== 4) return;
-
-        // Render Graphics
+        
+        // 1. Graphics
         this.graphics.render();
-
-        if(this.locked) return; // Stop processing CV if locked
-
-        // Run Vision
-        const pose = this.vision.findMarker(
-            this.markerSize, 
-            this.graphics.camera.fov, 
-            video.videoWidth, 
-            video.videoHeight
-        );
-
+        
+        // 2. Vision
+        const debugCanvas = document.getElementById('debug-layer');
+        const pose = this.vision.findMarker(video, debugCanvas);
+        
         if(pose) {
-            // Apply Smoothing
-            const lerp = 0.2;
-            const target = this.graphics.markerRoot.position;
+            // Smooth LERP
+            const target = this.graphics.root.position;
+            target.x += (pose.x - target.x) * 0.2;
+            target.y += (pose.y - target.y) * 0.2;
+            target.z += (pose.z - target.z) * 0.2;
             
-            // If distance jump is too high (>500mm), ignore (Anti-Teleport)
-            const dist = Math.abs(target.z - pose.z);
-            if(!this.lastPose || dist < 500) {
-                target.x += (pose.x - target.x) * lerp;
-                target.y += (pose.y - target.y) * lerp;
-                target.z += (pose.z - target.z) * lerp;
-                
-                this.lastPose = pose;
-                
-                document.getElementById('status-pill').textContent = "✓ Marker Locked";
-                document.getElementById('status-pill').className = "locked";
-            }
+            document.getElementById('status-pill').textContent = "✓ Locked";
+            document.getElementById('status-pill').className = "locked";
         } else {
-            document.getElementById('status-pill').textContent = "🔍 Finding Marker...";
-            document.getElementById('status-pill').className = "searching";
+            document.getElementById('status-pill').textContent = "🔍 Searching...";
+            document.getElementById('status-pill').className = "";
         }
     },
 
-    setupInteractions: function() {
-        const touch = document.getElementById('touch-pad');
-        let isDrag = false, startX, startY, objStart = {x:0, y:0};
-
-        const handleStart = (e) => {
-            if(this.locked) return;
-            isDrag = true;
-            startX = e.touches ? e.touches[0].clientX : e.clientX;
-            startY = e.touches ? e.touches[0].clientY : e.clientY;
-            objStart.x = this.graphics.stencil.position.x;
-            objStart.y = this.graphics.stencil.position.y;
-        };
-
-        const handleMove = (e) => {
-            if(!isDrag) return;
-            const cx = e.touches ? e.touches[0].clientX : e.clientX;
-            const cy = e.touches ? e.touches[0].clientY : e.clientY;
-            
-            // Scale drag based on depth
-            const depthScale = Math.abs(this.graphics.markerRoot.position.z) / 1000;
-            const dx = (cx - startX) * depthScale * 2;
-            const dy = (cy - startY) * depthScale * 2;
-
-            this.graphics.stencil.position.x = objStart.x + dx;
-            this.graphics.stencil.position.y = objStart.y - dy;
-        };
-
-        touch.addEventListener('touchstart', handleStart);
-        touch.addEventListener('touchmove', handleMove);
-        touch.addEventListener('touchend', () => isDrag = false);
+    setupTouch: function() {
+        const t = document.getElementById('touch-pad');
+        let drag=false, sx=0, sy=0, ox=0, oy=0;
+        
+        t.addEventListener('touchstart', e => {
+            drag=true; sx=e.touches[0].clientX; sy=e.touches[0].clientY;
+            ox=this.graphics.stencil.position.x; oy=this.graphics.stencil.position.y;
+        });
+        
+        t.addEventListener('touchmove', e => {
+            if(!drag) return;
+            const cx=e.touches[0].clientX; const cy=e.touches[0].clientY;
+            const scale = Math.abs(this.graphics.root.position.z)/1000 * 2;
+            this.graphics.stencil.position.x = ox + (cx-sx)*scale;
+            this.graphics.stencil.position.y = oy - (cy-sy)*scale;
+        });
+        
+        t.addEventListener('touchend', () => drag=false);
     },
 
-    resetObject: function() {
-        this.graphics.stencil.position.set(200, 0, 0);
-    },
-
-    lockView: function() {
-        this.locked = true;
+    reset: function() { this.graphics.stencil.position.set(200,0,0); },
+    lock: function() { 
         document.getElementById('camera-layer').pause();
         document.getElementById('controls-panel').classList.add('hidden');
         document.getElementById('result-panel').classList.remove('hidden');
-        document.getElementById('status-pill').classList.add('hidden');
     }
 };
-
 </script>
 </body>
 </html>
