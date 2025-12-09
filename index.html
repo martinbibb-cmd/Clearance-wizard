@@ -322,6 +322,12 @@ const App = {
         // UI
         this.markerSize = parseInt(document.getElementById('input-size').value);
         const selectedIndex = parseInt(document.getElementById('input-type').value);
+        
+        // Validate index and get config
+        if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= APPLIANCE_DB.length) {
+            console.error('Invalid appliance selection');
+            return;
+        }
         this.currentBoilerConfig = APPLIANCE_DB[selectedIndex];
         
         document.getElementById('menu-panel').classList.add('hidden');
