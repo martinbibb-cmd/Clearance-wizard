@@ -100,6 +100,8 @@ const APPLIANCE_DB = [
     // --- BOILERS ---
     // Clearances now specified individually: top, bottom, left, right, front (service space)
     // Based on manufacturer specifications from installation manuals
+    // Note: 'front' clearance represents service space depth and is stored for documentation,
+    // but is not rendered in the 2D top-down AR visualization
     { id: "wb_4000", category: "boiler", label: "Worcester 4000 (Combi/System)", w: 400, h: 724, d: 310, clearance: { top: 30, bottom: 200, left: 5, right: 5, front: 600 } },
     { id: "wb_8000", category: "boiler", label: "Worcester 8000 (CDi/Si Compact)", w: 440, h: 780, d: 365, clearance: { top: 30, bottom: 200, left: 5, right: 5, front: 450 } },
     { id: "wb_ri",   category: "boiler", label: "Worcester Ri Compact", w: 390, h: 600, d: 270, clearance: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } },
@@ -271,7 +273,7 @@ class GraphicsEngine {
         // Clearance Red Zone - supporting both old format (number) and new format (object)
         let clearanceTop, clearanceBottom, clearanceLeft, clearanceRight;
         
-        if (typeof data.clearance === 'object') {
+        if (typeof data.clearance === 'object' && data.clearance !== null && !Array.isArray(data.clearance)) {
             // New multi-directional clearance format
             clearanceTop = data.clearance.top || 0;
             clearanceBottom = data.clearance.bottom || 0;
