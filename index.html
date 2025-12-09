@@ -93,7 +93,7 @@
         </div>
 
         <div id="result-panel" class="control-bar interactive hidden">
-            <button class="btn-round" style="background: var(--wb-blue); color: white;" onclick="App.captureImage()">📷</button>
+            <button class="btn-round" style="background: var(--wb-blue); color: white;" onclick="App.captureImage()" aria-label="Capture AR view" title="Capture current AR view as image">📷</button>
             <button class="primary" style="max-width:200px;" onclick="location.reload()">New Check</button>
         </div>
     </div>
@@ -392,6 +392,9 @@ const App = {
                 modelSelect.appendChild(opt);
             }
         });
+        
+        // Trigger model change to update custom input visibility
+        this.onModelChange();
     },
 
     startSession: async function() {
@@ -504,7 +507,8 @@ const App = {
     resetObject: function() { this.graphics.stencil.position.set(150,0,0); },
     
     captureImage: function() {
-        // Create a temporary canvas to composite the video and AR layer
+        // Capture the current frozen AR view (video is paused after lock)
+        // This captures the locked frame with AR overlay for download
         const canvas = document.createElement('canvas');
         const video = document.getElementById('camera-layer');
         const arCanvas = document.getElementById('ar-layer');
@@ -524,7 +528,8 @@ const App = {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'clearance-check-' + new Date().toISOString().slice(0,19).replace(/:/g,'-') + '.png';
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            a.download = 'clearance-check-' + timestamp + '.png';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
