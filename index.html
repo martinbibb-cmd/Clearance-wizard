@@ -59,7 +59,9 @@
             </select>
 
             <label>2. Appliance Model</label>
-            <select id="input-type"></select>
+            <select id="input-type">
+                <option value="">Loading...</option>
+            </select>
 
             <button class="primary" onclick="App.startSession()">Start Camera</button>
         </div>
@@ -114,7 +116,7 @@ class VisionSystem {
         if(!this._ctx) {
             const c = document.createElement('canvas');
             c.width = w; c.height = h;
-            this._ctx = c.getContext('2d');
+            this._ctx = c.getContext('2d', {willReadFrequently:true});
         }
         this._ctx.drawImage(video, 0, 0, w, h);
         
@@ -233,6 +235,8 @@ const App = {
 
     onCvLoaded: function() { 
         const sel = document.getElementById('input-type');
+        // Clear loading option
+        sel.innerHTML = '';
         BOILER_DB.forEach((b, i) => {
             const opt = document.createElement('option');
             opt.value = i;
