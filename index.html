@@ -22,7 +22,7 @@
         
         h1 { margin: 0 0 15px 0; font-size: 1.2rem; color: #333; text-align: center; }
         label { display: block; font-size: 0.8rem; color: #666; margin-bottom: 5px; font-weight: 700; text-transform: uppercase; }
-        select, button { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 15px; font-size: 1rem; background: white; }
+        select, button, input[type="number"] { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 15px; font-size: 1rem; background: white; }
         
         button.primary { background: var(--wb-blue); color: white; border: none; font-weight: 600; }
         
@@ -52,11 +52,17 @@
             <h1>🔥 Clearance Genie</h1>
             
             <label>1. Marker Size</label>
-            <select id="input-size">
+            <select id="input-size" onchange="App.onSizeChange()">
                 <option value="45">45mm (Your Marker)</option>
                 <option value="53">53mm (Credit Card)</option>
                 <option value="160">160mm (A4 Print)</option>
+                <option value="custom">Custom Size...</option>
             </select>
+            
+            <div id="custom-size-container" class="hidden">
+                <label>Custom Marker Size (mm)</label>
+                <input type="number" id="custom-size-input" min="10" max="500" step="1" placeholder="Enter size in mm" aria-label="Custom marker size in millimeters">
+            </div>
 
             <label>2. Category</label>
             <select id="input-category" onchange="App.updateModels()">
@@ -303,6 +309,18 @@ const App = {
         console.log("CV Ready");
     },
 
+    // Handle marker size selection change
+    onSizeChange: function() {
+        const sizeSelect = document.getElementById('input-size');
+        const customContainer = document.getElementById('custom-size-container');
+        
+        if (sizeSelect.value === 'custom') {
+            customContainer.classList.remove('hidden');
+        } else {
+            customContainer.classList.add('hidden');
+        }
+    },
+
     // NEW FUNCTION: Filters the list based on category
     updateModels: function() {
         const category = document.getElementById('input-category').value;
@@ -324,8 +342,21 @@ const App = {
     },
 
     startSession: async function() {
-        this.markerSize = parseInt(document.getElementById('input-size').value);
-        const index = parseInt(document.getElementById('input-type').value);
+        const sizeSelect = document.getElementById('input-size').value;
+        
+        // Get marker size from either preset or custom input
+        if (sizeSelect === 'custom') {
+            const customSize = parseInt(document.getElementById('custom-size-input').value, 10);
+            if (isNaN(customSize) || customSize < 10 || customSize > 500) {
+                alert('Please enter a valid marker size between 10 and 500 millimeters (whole numbers only)');
+                return;
+            }
+            this.markerSize = customSize;
+        } else {
+            this.markerSize = parseInt(sizeSelect, 10);
+        }
+        
+        const index = parseInt(document.getElementById('input-type').value, 10);
         
         // Validate index
         if(isNaN(index) || index < 0 || index >= APPLIANCE_DB.length) {
