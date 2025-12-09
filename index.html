@@ -61,7 +61,7 @@
             
             <div id="custom-size-container" class="hidden">
                 <label>Custom Marker Size (mm)</label>
-                <input type="number" id="custom-size-input" min="10" max="500" step="1" placeholder="Enter size in mm">
+                <input type="number" id="custom-size-input" min="10" max="500" step="1" placeholder="Enter size in mm" aria-label="Custom marker size in millimeters">
             </div>
 
             <label>2. Category</label>
@@ -346,17 +346,17 @@ const App = {
         
         // Get marker size from either preset or custom input
         if (sizeSelect === 'custom') {
-            const customSize = parseInt(document.getElementById('custom-size-input').value);
+            const customSize = parseInt(document.getElementById('custom-size-input').value, 10);
             if (isNaN(customSize) || customSize < 10 || customSize > 500) {
-                alert('Please enter a valid custom marker size between 10mm and 500mm');
+                alert('Please enter a valid marker size between 10 and 500 millimeters (whole numbers only)');
                 return;
             }
             this.markerSize = customSize;
         } else {
-            this.markerSize = parseInt(sizeSelect);
+            this.markerSize = parseInt(sizeSelect, 10);
         }
         
-        const index = parseInt(document.getElementById('input-type').value);
+        const index = parseInt(document.getElementById('input-type').value, 10);
         
         // Validate index
         if(isNaN(index) || index < 0 || index >= APPLIANCE_DB.length) {
