@@ -207,11 +207,10 @@ class GraphicsEngine {
         // 1. OBJECT OUTLINE
         const boxGeo = new THREE.BoxGeometry(data.w, data.h, 5);
         const boxEdges = new THREE.EdgesGeometry(boxGeo);
-        // Use Blue for Boilers, Green for Rads/Cyls to distinguish? 
-        // For now, sticking to "Brand Blue" for clarity
-        this.stencil.add(new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x005eb8, linewidth: 2 })));
+        // Use Worcester Blue for clarity
+        this.stencil.add(new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x005eb8 })));
 
-        // 2. CLEARANCE ZONE (Dashed)
+        // 2. CLEARANCE ZONE (Red outline)
         const c = data.clearance;
         const zW = data.w + (c*2);
         const zH = data.h + (c*2);
@@ -236,11 +235,11 @@ class GraphicsEngine {
         // 2. 75mm DANGER ZONE (Red)
         const redZone = new THREE.Mesh(new THREE.RingGeometry(data.radius, data.radius + 75, 32), new THREE.MeshBasicMaterial({color:0xe30613, opacity:0.4, transparent:true}));
         
-        // 3. 300mm CLEARANCE ZONE (Green/Amber Ring)
-        const safeZone = new THREE.Mesh(new THREE.RingGeometry(data.radius + 75, 300, 32), new THREE.MeshBasicMaterial({color:0xffcc00, opacity:0.2, transparent:true}));
+        // 3. CLEARANCE ZONE (Amber/Yellow Ring) - uses data.clearance for flexibility
+        const safeZone = new THREE.Mesh(new THREE.RingGeometry(data.radius + 75, data.clearance, 32), new THREE.MeshBasicMaterial({color:0xffcc00, opacity:0.2, transparent:true}));
         
-        // 4. OUTER BORDER (Green Dashed)
-        const borderGeo = new THREE.RingGeometry(298, 300, 64);
+        // 4. OUTER BORDER (Green) - 2mm border at clearance edge
+        const borderGeo = new THREE.RingGeometry(data.clearance - 2, data.clearance, 64);
         const border = new THREE.Mesh(borderGeo, new THREE.MeshBasicMaterial({color:0x009639}));
 
         this.stencil.add(ring, redZone, safeZone, border);
