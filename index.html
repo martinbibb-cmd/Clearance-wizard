@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Clearance Genie Pro</title>
+    
+    <script async src="https://docs.opencv.org/4.5.2/opencv.js" onload="App.onCvLoaded()"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        :root { --primary: #2563eb; --danger: #dc2626; --success: #16a34a; --surface: #ffffff; }
+        body { margin: 0; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+        
+        /* LAYERS */
+        #camera-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        #ar-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: flex; flex-direction: column; pointer-events: none; }
+        
+        /* UI COMPONENTS */
+        .interactive { pointer-events: auto; }
+        .card { background: rgba(255,255,255,0.95); padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin: 20px; backdrop-filter: blur(5px); max-width: 400px; align-self: center; }
+        .hidden { display: none !important; }
+        
+        h1 { margin: 0 0 15px 0; font-size: 1.25rem; color: #1e293b; text-align: center; }
+        label { display: block; font-size: 0.85rem; color: #64748b; margin-bottom: 5px; font-weight: 600; }
+        select, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 15px; font-size: 1rem; background: white; }
+        
+        button.primary { background: var(--primary); color: white; border: none; font-weight: 600; box-shadow: 0 2px 10px rgba(37,99,235,0.3); }
+        button.secondary { background: #f1f5f9; color: #334155; border: none; font-weight: 600; }
+        
+        /* STATUS BADGE */
+        #status-pill {
+            align-self: center; margin-top: 15px; padding: 8px 16px; border-radius: 20px; 
+            font-size: 0.85rem; font-weight: 600; background: rgba(0,0,0,0.8); color: white;
+            transition: all 0.3s ease;
+        }
+        #status-pill.locked { background: var(--success); }
+        #status-pill.searching { background: #f59e0b; color: black; }
+        
+        /* BOTTOM CONTROLS */
+        .control-bar { margin-top: auto; padding: 20px; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); display: flex; gap: 10px; justify-content: center; }
+        .control-btn { flex: 1; padding: 15px; border-radius: 12px; border: none; font-weight: 600; max-width: 150px; }
+        
+        /* TOUCH PAD */
+        #touch-pad { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; touch-action: none; }
+    </style>
+</head>
+<body>
+
+    <video id="camera-layer" autoplay playsinline muted></video>
+    <canvas id="ar-layer"></canvas>
+    
+    <div id="touch-pad"></div>
+
+    <div id="ui-layer">
+        
+        <div id="status-pill" class="hidden">Initializing...</div>
+
+        <div id="menu-panel" class="card interactive">
+            <h1>🔥 Clearance Genie</h1>
+            
+            <label>1. EQUIPMENT TYPE</label>
+            <select id="input-type">
+                <option value="flue">Flue Terminal (Curved)</option>
+                <option value="boiler">Boiler (Box)</option>
+                <option value="radiator">Radiator (Box)</option>
+                <option value="cylinder">Cylinder (Tall Box)</option>
+            </select>
+
+            <label>2. MARKER SIZE</label>
+            <select id="input-size">
+                <option value="53">Credit Card (53mm)</option>
+                <option value="100">100mm Standard</option>
+                <option value="160">A4 Safe Print (160mm)</option>
+            </select>
+
+            <button class="primary" onclick="App.startSession()">Start Camera</button>
+        </div>
+
+        <div id="controls-panel" class="control-bar interactive hidden">
+            <button class="control-btn secondary" onclick="App.resetObject()">↺ Reset</button>
+            <button class="control-btn primary" onclick="App.lockView()">🔒 Lock</button>
+        </div>
+
+        <div id="result-panel" class="control-bar interactive hidden">
+            <button class="control-btn primary" onclick="location.reload()">New Check</button>
+        </div>
+
+    </div>
+
+<script>
+
+/**
+ * GRAPHICS ENGINE (Three.js)
+ * Handles the visual "Stencils" (Curved Flues & Hatched Boilers)
+ */
+class GraphicsEngine {
+    constructor(canvas) {
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        
+        // Lighting
+        this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        dirLight.position.set(0, 0, 1);
+        this.scene.add(dirLight);
+
+        // Root Anchors
+        this.markerRoot = new THREE.Group();
+        this.scene.add(this.markerRoot);
+        
+        this.stencil = null;
+    }
+
+    createStencil(type) {
+        if(this.stencil) this.markerRoot.remove(this.stencil);
+        
+        if (type === 'flue') {
+            this.stencil = this._createRadialStencil();
+        } else {
+            // Default dimensions based on type
+            let w = 400, h = 700;
+            if(type === 'radiator') { w = 1000; h = 600; }
+            if(type === 'cylinder') { w = 450; h = 1200; }
+            this.stencil = this._createBoxStencil(w, h);
+        }
+
+        // Offset slightly off the marker so it doesn't overlap perfectly
+        this.stencil.position.x = 200; 
+        this.markerRoot.add(this.stencil);
+        return this.stencil;
+    }
+
+    // 1. CURVED ZONES (For Flues)
+    _createRadialStencil() {
+        const group = new THREE.Group();
+        
+        // The Flue Center (100mm diameter)
+        const flueGeo = new THREE.RingGeometry(0, 50, 32);
+        const flueMat = new THREE.MeshBasicMaterial({ color: 0x333333, opacity: 0.8, transparent: true });
+        const flue = new THREE.Mesh(flueGeo, flueMat);
+        group.add(flue);
+
+        // Red Zone (0 - 75mm clearance) -> Radius 50 to 125
+        const redGeo = new THREE.RingGeometry(50, 125, 32);
+        const redMat = new THREE.MeshBasicMaterial({ color: 0xdc2626, opacity: 0.4, transparent: true, side: THREE.DoubleSide });
+        group.add(new THREE.Mesh(redGeo, redMat));
+
+        // Amber Zone (75mm - 300mm) -> Radius 125 to 350
+        // We use lines for a cleaner technical look
+        const amberGeo = new THREE.RingGeometry(125, 350, 32);
+        const amberEdges = new THREE.EdgesGeometry(amberGeo);
+        const amberLine = new THREE.LineSegments(amberEdges, new THREE.LineBasicMaterial({ color: 0xf59e0b }));
+        group.add(amberLine);
+
+        // Green Zone (>300mm) -> Radius 350+
+        // Just an outer ring to indicate safe space
+        const greenGeo = new THREE.RingGeometry(350, 355, 64);
+        const greenMat = new THREE.MeshBasicMaterial({ color: 0x16a34a });
+        group.add(new THREE.Mesh(greenGeo, greenMat));
+
+        return group;
+    }
+
+    // 2. BOX ZONES (For Boilers/Rads) - The "Greenstar" Style
+    _createBoxStencil(w, h) {
+        const group = new THREE.Group();
+        const clearance = 300; // Standard 300mm zone
+        
+        // Inner Box (The Appliance)
+        const boxGeo = new THREE.BoxGeometry(w, h, 10);
+        const boxEdges = new THREE.EdgesGeometry(boxGeo);
+        const boxLine = new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x2563eb, linewidth: 2 }));
+        group.add(boxLine);
+
+        // Hatching Logic (The diagonal lines)
+        const hatchMat = new THREE.LineBasicMaterial({ color: 0xdc2626, opacity: 0.3, transparent: true });
+        const points = [];
+        const zoneW = w + (clearance * 2);
+        const zoneH = h + (clearance * 2);
+        const startX = -zoneW / 2, endX = zoneW / 2;
+        const startY = -zoneH / 2, endY = zoneH / 2;
+        
+        // Create clearance boundary
+        const boundaryGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(zoneW, zoneH, 10));
+        group.add(new THREE.LineSegments(boundaryGeo, new THREE.LineBasicMaterial({ color: 0xdc2626, dashSize: 20, gapSize: 10 })));
+
+        // Draw diagonals
+        for (let x = startX; x <= endX + zoneH; x += 50) {
+            points.push(new THREE.Vector3(x, startY, -5));
+            points.push(new THREE.Vector3(x - zoneH, endY, -5));
+        }
+        group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), hatchMat));
+
+        return group;
+    }
+
+    render() {
+        this.renderer.render(this.scene, this.camera);
+    }
+}
+
+/**
+ * VISION SYSTEM (OpenCV)
+ * Strictly finds high-contrast squares
+ */
+class VisionSystem {
+    constructor() {
+        this.ready = false;
+        this.lastPose = null;
+    }
+
+    init(video) {
+        this.cap = new cv.VideoCapture(video);
+        this.src = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
+        this.gray = new cv.Mat();
+        this.binary = new cv.Mat();
+        this.contours = new cv.MatVector();
+        this.hierarchy = new cv.Mat();
+        this.ready = true;
+    }
+
+    findMarker(markerSizeMM, cameraFOV, width, height) {
+        if(!this.ready) return null;
+
+        // Downscale for speed (crucial on mobile)
+        const scale = 0.5;
+        const w = width * scale;
+        const h = height * scale;
+
+        // Use a temp canvas to draw video frame downscaled
+        if(!this._tempCanvas) {
+            this._tempCanvas = document.createElement('canvas');
+            this._ctx = this._tempCanvas.getContext('2d', {willReadFrequently:true});
+        }
+        this._tempCanvas.width = w;
+        this._tempCanvas.height = h;
+        this._ctx.drawImage(document.getElementById('camera-layer'), 0,0,w,h);
+        
+        // Read into OpenCV
+        this.src.data.set(this._ctx.getImageData(0,0,w,h).data);
+        cv.cvtColor(this.src, this.gray, cv.COLOR_RGBA2GRAY);
+        cv.adaptiveThreshold(this.gray, this.binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 21, 2);
+        cv.findContours(this.binary, this.contours, this.hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+        let bestPose = null;
+        let maxArea = 0;
+
+        for (let i = 0; i < this.contours.size(); ++i) {
+            let cnt = this.contours.get(i);
+            let area = cv.contourArea(cnt);
+
+            if (area > 1000 && area < (w*h)*0.8) {
+                let peri = cv.arcLength(cnt, true);
+                let approx = new cv.Mat();
+                cv.approxPolyDP(cnt, approx, 0.05 * peri, true);
+
+                if (approx.rows === 4 && cv.isContourConvex(approx)) {
+                    // CONTRAST GUARD: Check if inside is black
+                    if(this._checkContrast(approx, w, h)) {
+                        if (area > maxArea) {
+                            maxArea = area;
+                            bestPose = this._calculatePose(approx, markerSizeMM, cameraFOV, width, height, scale);
+                        }
+                    }
+                }
+                approx.delete();
+            }
+        }
+        return bestPose;
+    }
+
+    _checkContrast(approx, w, h) {
+        // Check 3/4 corners for darkness
+        let darks = 0;
+        let cx = 0, cy = 0;
+        const pts = [];
+        
+        for(let j=0; j<8; j+=2) {
+            pts.push({x: approx.data32S[j], y: approx.data32S[j+1]});
+            cx += approx.data32S[j];
+            cy += approx.data32S[j+1];
+        }
+        cx/=4; cy/=4;
+
+        for(let k=0; k<4; k++) {
+            // Sample 15% towards center
+            const sx = pts[k].x + (cx - pts[k].x) * 0.15;
+            const sy = pts[k].y + (cy - pts[k].y) * 0.15;
+            if(sx>0 && sx<w && sy>0 && sy<h) {
+                if(this.gray.ucharAt(sy, sx) < 100) darks++;
+            }
+        }
+        return darks >= 3;
+    }
+
+    _calculatePose(approx, realSize, fov, vidW, vidH, scale) {
+        // 1. Get Corners scaled to full res
+        const c = [];
+        for(let j=0; j<8; j+=2) c.push({x: approx.data32S[j]/scale, y: approx.data32S[j+1]/scale});
+
+        // 2. Apparent Width
+        const wPx = (Math.hypot(c[0].x-c[1].x, c[0].y-c[1].y) + Math.hypot(c[2].x-c[3].x, c[2].y-c[3].y)) / 2;
+        
+        // 3. Focal Length & Z Depth
+        const vFovRad = fov * Math.PI / 180;
+        const focal = (vidH / 2) / Math.tan(vFovRad / 2);
+        const z = -(realSize * focal) / wPx;
+
+        // 4. XY Position
+        const cx = (c[0].x + c[2].x) / 2;
+        const cy = (c[0].y + c[2].y) / 2;
+        
+        const x = (cx - vidW/2) * (Math.abs(z)/focal);
+        const y = (cy - vidH/2) * (Math.abs(z)/focal) * -1; // Invert Y
+
+        return { x, y, z };
+    }
+}
+
+/**
+ * MAIN APP CONTROLLER
+ */
+const App = {
+    cvReady: false,
+    active: false,
+    locked: false,
+    
+    // Config
+    markerSize: 160,
+    
+    // Modules
+    vision: new VisionSystem(),
+    graphics: null,
+    
+    // State
+    lastPose: null,
+
+    onCvLoaded: function() {
+        this.cvReady = true;
+        console.log("OpenCV Ready");
+    },
+
+    startSession: async function() {
+        if(!this.cvReady) return alert("System loading...");
+        
+        // 1. Get Config
+        this.markerSize = parseInt(document.getElementById('input-size').value);
+        const type = document.getElementById('input-type').value;
+
+        // 2. Setup UI
+        document.getElementById('menu-panel').classList.add('hidden');
+        document.getElementById('controls-panel').classList.remove('hidden');
+        document.getElementById('status-pill').classList.remove('hidden');
+        document.getElementById('status-pill').textContent = "🔍 Finding Marker...";
+        document.getElementById('status-pill').className = "searching";
+
+        // 3. Setup Video
+        const video = document.getElementById('camera-layer');
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'environment', width: { ideal: 1920 } } 
+        });
+        video.srcObject = stream;
+        
+        // 4. Setup Graphics
+        this.graphics = new GraphicsEngine(document.getElementById('ar-layer'));
+        this.graphics.createStencil(type);
+        this.setupInteractions();
+
+        // 5. Start Loop
+        this.vision.init(video);
+        this.active = true;
+        this.loop();
+    },
+
+    loop: function() {
+        if(!this.active) return;
+        requestAnimationFrame(this.loop.bind(this));
+
+        const video = document.getElementById('camera-layer');
+        if(video.readyState !== 4) return;
+
+        // Render Graphics
+        this.graphics.render();
+
+        if(this.locked) return; // Stop processing CV if locked
+
+        // Run Vision
+        const pose = this.vision.findMarker(
+            this.markerSize, 
+            this.graphics.camera.fov, 
+            video.videoWidth, 
+            video.videoHeight
+        );
+
+        if(pose) {
+            // Apply Smoothing
+            const lerp = 0.2;
+            const target = this.graphics.markerRoot.position;
+            
+            // If distance jump is too high (>500mm), ignore (Anti-Teleport)
+            const dist = Math.abs(target.z - pose.z);
+            if(!this.lastPose || dist < 500) {
+                target.x += (pose.x - target.x) * lerp;
+                target.y += (pose.y - target.y) * lerp;
+                target.z += (pose.z - target.z) * lerp;
+                
+                this.lastPose = pose;
+                
+                document.getElementById('status-pill').textContent = "✓ Marker Locked";
+                document.getElementById('status-pill').className = "locked";
+            }
+        } else {
+            document.getElementById('status-pill').textContent = "🔍 Finding Marker...";
+            document.getElementById('status-pill').className = "searching";
+        }
+    },
+
+    setupInteractions: function() {
+        const touch = document.getElementById('touch-pad');
+        let isDrag = false, startX, startY, objStart = {x:0, y:0};
+
+        const handleStart = (e) => {
+            if(this.locked) return;
+            isDrag = true;
+            startX = e.touches ? e.touches[0].clientX : e.clientX;
+            startY = e.touches ? e.touches[0].clientY : e.clientY;
+            objStart.x = this.graphics.stencil.position.x;
+            objStart.y = this.graphics.stencil.position.y;
+        };
+
+        const handleMove = (e) => {
+            if(!isDrag) return;
+            const cx = e.touches ? e.touches[0].clientX : e.clientX;
+            const cy = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            // Scale drag based on depth
+            const depthScale = Math.abs(this.graphics.markerRoot.position.z) / 1000;
+            const dx = (cx - startX) * depthScale * 2;
+            const dy = (cy - startY) * depthScale * 2;
+
+            this.graphics.stencil.position.x = objStart.x + dx;
+            this.graphics.stencil.position.y = objStart.y - dy;
+        };
+
+        touch.addEventListener('touchstart', handleStart);
+        touch.addEventListener('touchmove', handleMove);
+        touch.addEventListener('touchend', () => isDrag = false);
+    },
+
+    resetObject: function() {
+        this.graphics.stencil.position.set(200, 0, 0);
+    },
+
+    lockView: function() {
+        this.locked = true;
+        document.getElementById('camera-layer').pause();
+        document.getElementById('controls-panel').classList.add('hidden');
+        document.getElementById('result-panel').classList.remove('hidden');
+        document.getElementById('status-pill').classList.add('hidden');
+    }
+};
+
+</script>
+</body>
+</html>
