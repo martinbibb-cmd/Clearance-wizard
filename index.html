@@ -53,12 +53,12 @@
         <div id="menu-panel" class="card interactive">
             <h2 style="margin-top:0;">🔥 Clearance Genie</h2>
             
-            <label>Boiler Model</label>
+            <label for="input-type">Boiler Model</label>
             <select id="input-type">
                 <!-- Populated dynamically from BOILER_DATABASE -->
             </select>
 
-            <label>Marker Size</label>
+            <label for="input-size">Marker Size</label>
             <select id="input-size">
                 <option value="53">Credit Card (53mm)</option>
                 <option value="100">100mm Standard</option>
@@ -317,6 +317,7 @@ class GraphicsEngine {
         this.stencil = new THREE.Group();
         
         // Boiler Box with specific dimensions
+        // Using actual depth for accurate 3D representation in AR overlay
         const geo = new THREE.BoxGeometry(boilerConfig.dims.w, boilerConfig.dims.h, boilerConfig.dims.d);
         const mat = new THREE.MeshBasicMaterial({color:0x2563eb, opacity:0.8, transparent:true});
         const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0xffffff}));
@@ -343,8 +344,6 @@ const App = {
         const dropdown = document.getElementById('input-type');
         // Only populate if not already populated
         if(dropdown.options.length > 0) return;
-        
-        dropdown.innerHTML = '';
         
         BOILER_DATABASE.forEach(boiler => {
             const option = document.createElement('option');
