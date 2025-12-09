@@ -53,13 +53,12 @@
         <div id="menu-panel" class="card interactive">
             <h2 style="margin-top:0;">🔥 Clearance Genie</h2>
             
-            <label>Equipment Type</label>
+            <label for="input-type">Boiler Model</label>
             <select id="input-type">
-                <option value="boiler">Boiler (Box)</option>
-                <option value="flue">Flue (Curved)</option>
+                <!-- Populated dynamically from BOILER_DATABASE -->
             </select>
 
-            <label>Marker Size</label>
+            <label for="input-size">Marker Size</label>
             <select id="input-size">
                 <option value="53">Credit Card (53mm)</option>
                 <option value="100">100mm Standard</option>
@@ -85,6 +84,93 @@
     </div>
 
 <script>
+// ==========================================
+// 📚 BOILER DATABASE (Dims in mm)
+// ==========================================
+const BOILER_DATABASE = [
+    // --- WORCESTER BOSCH ---
+    { 
+        id: "wb_4000", 
+        label: "Worcester Greenstar 4000 (System/Combi)", 
+        dims: { w: 400, h: 724, d: 310 },
+        clearances: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } 
+    },
+    { 
+        id: "wb_8000", 
+        label: "Worcester Greenstar 8000 (Life/Style)", 
+        dims: { w: 440, h: 780, d: 365 },
+        clearances: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } 
+    },
+    { 
+        id: "wb_ri_compact", 
+        label: "Worcester Greenstar Ri (Compact)", 
+        dims: { w: 390, h: 600, d: 270 },
+        clearances: { top: 30, bottom: 200, left: 5, right: 5, front: 600 } 
+    },
+    { 
+        id: "wb_cdi_compact", 
+        label: "Worcester Greenstar CDi Compact", 
+        dims: { w: 390, h: 690, d: 280 },
+        clearances: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } 
+    },
+
+    // --- IDEAL ---
+    { 
+        id: "ideal_logic", 
+        label: "Ideal Logic+ / Max (All Types)", 
+        dims: { w: 395, h: 700, d: 278 },
+        clearances: { top: 100, bottom: 100, left: 2.5, right: 2.5, front: 450 } 
+    },
+
+    // --- VAILLANT ---
+    { 
+        id: "vaillant_pure", 
+        label: "Vaillant ecoTEC Pure (Combi/System)", 
+        dims: { w: 390, h: 700, d: 295 },
+        clearances: { top: 150, bottom: 150, left: 5, right: 5, front: 500 } 
+    },
+    { 
+        id: "vaillant_pro", 
+        label: "Vaillant ecoTEC Pro (Combi/System)", 
+        dims: { w: 440, h: 720, d: 338 },
+        clearances: { top: 165, bottom: 180, left: 5, right: 5, front: 500 } 
+    },
+    { 
+        id: "vaillant_exclusive", 
+        label: "Vaillant ecoTEC Exclusive", 
+        dims: { w: 440, h: 720, d: 406 },
+        clearances: { top: 165, bottom: 180, left: 5, right: 5, front: 500 } 
+    },
+
+    // --- GLOW-WORM ---
+    { 
+        id: "glowworm_energy_cs", 
+        label: "Glow-worm Energy (Combi/System)", 
+        dims: { w: 390, h: 700, d: 280 },
+        clearances: { top: 150, bottom: 150, left: 5, right: 5, front: 600 } 
+    },
+    { 
+        id: "glowworm_energy_r", 
+        label: "Glow-worm Energy (Regular)", 
+        dims: { w: 375, h: 600, d: 280 },
+        clearances: { top: 150, bottom: 150, left: 5, right: 5, front: 600 } 
+    },
+
+    // --- VIESSMANN ---
+    { 
+        id: "viessmann_050", 
+        label: "Viessmann Vitodens 050-W", 
+        dims: { w: 400, h: 700, d: 300 },
+        clearances: { top: 350, bottom: 350, left: 0, right: 0, front: 700 } 
+    },
+    { 
+        id: "viessmann_100", 
+        label: "Viessmann Vitodens 100-W", 
+        dims: { w: 400, h: 700, d: 360 },
+        clearances: { top: 350, bottom: 350, left: 0, right: 0, front: 700 } 
+    }
+];
+
 class VisionSystem {
     constructor() { this.ready = false; }
     
@@ -221,22 +307,22 @@ class GraphicsEngine {
         this.stencil = null;
     }
 
-    setStencil(type) {
+    setStencil(boilerConfig) {
+        if(!boilerConfig || !boilerConfig.dims) {
+            console.error('Invalid boiler configuration');
+            return;
+        }
+        
         if(this.stencil) this.root.remove(this.stencil);
         this.stencil = new THREE.Group();
         
-        if(type === 'flue') {
-            // Flue Ring
-            const ring = new THREE.Mesh(new THREE.RingGeometry(0, 50, 32), new THREE.MeshBasicMaterial({color:0x333333}));
-            const zone = new THREE.Mesh(new THREE.RingGeometry(50, 300, 32), new THREE.MeshBasicMaterial({color:0xff0000, opacity:0.3, transparent:true}));
-            this.stencil.add(ring, zone);
-        } else {
-            // Boiler Box
-            const geo = new THREE.BoxGeometry(400, 700, 10);
-            const mat = new THREE.MeshBasicMaterial({color:0x2563eb, opacity:0.8, transparent:true});
-            const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0xffffff}));
-            this.stencil.add(new THREE.Mesh(geo, mat), edges);
-        }
+        // Boiler Box with specific dimensions
+        // Using actual depth for accurate 3D representation in AR overlay
+        const geo = new THREE.BoxGeometry(boilerConfig.dims.w, boilerConfig.dims.h, boilerConfig.dims.d);
+        const mat = new THREE.MeshBasicMaterial({color:0x2563eb, opacity:0.8, transparent:true});
+        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0xffffff}));
+        this.stencil.add(new THREE.Mesh(geo, mat), edges);
+        
         this.stencil.position.x = 200; // Offset
         this.root.add(this.stencil);
     }
@@ -247,13 +333,34 @@ const App = {
     markerSize: 53,
     vision: new VisionSystem(),
     graphics: null,
+    currentBoilerConfig: null,
     
-    onCvLoaded: function() { console.log("CV Ready"); },
+    onCvLoaded: function() { 
+        console.log("CV Ready");
+        this.populateBoilerDropdown();
+    },
+    
+    populateBoilerDropdown: function() {
+        const dropdown = document.getElementById('input-type');
+        // Only populate if not already populated
+        if(dropdown.options.length > 0) return;
+        
+        BOILER_DATABASE.forEach(boiler => {
+            const option = document.createElement('option');
+            option.value = boiler.id;
+            option.textContent = boiler.label;
+            dropdown.appendChild(option);
+        });
+        
+        // Set the current boiler config to the first item
+        this.currentBoilerConfig = BOILER_DATABASE[0];
+    },
     
     start: async function() {
         // UI
         this.markerSize = parseInt(document.getElementById('input-size').value);
-        const type = document.getElementById('input-type').value;
+        const selectedBoilerId = document.getElementById('input-type').value;
+        this.currentBoilerConfig = BOILER_DATABASE.find(b => b.id === selectedBoilerId) || BOILER_DATABASE[0];
         const debug = document.getElementById('debug-mode').checked;
         
         document.getElementById('menu-panel').classList.add('hidden');
@@ -271,7 +378,7 @@ const App = {
         
         // Graphics
         this.graphics = new GraphicsEngine(document.getElementById('ar-layer'));
-        this.graphics.setStencil(type);
+        this.graphics.setStencil(this.currentBoilerConfig);
         this.setupTouch();
 
         // Loop
@@ -333,6 +440,11 @@ const App = {
         document.getElementById('result-panel').classList.remove('hidden');
     }
 };
+
+// Populate dropdown on page load
+document.addEventListener('DOMContentLoaded', function() {
+    App.populateBoilerDropdown();
+});
 </script>
 </body>
 </html>
