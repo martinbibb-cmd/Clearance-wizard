@@ -229,6 +229,9 @@ class GraphicsEngine {
     }
 
     _createRadial(data) {
+        // NOTE: Assumes data.clearance > data.radius + 75 (danger zone + flue size)
+        // and data.clearance >= 2 for border to render correctly
+        
         // 1. FLUE CENTER (Solid)
         const ring = new THREE.Mesh(new THREE.RingGeometry(0, data.radius, 32), new THREE.MeshBasicMaterial({color:0x333333, opacity: 0.9, transparent:true}));
         
