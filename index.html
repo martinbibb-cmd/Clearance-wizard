@@ -118,8 +118,8 @@ class VisionSystem {
         cv.cvtColor(this.src, this.gray, cv.COLOR_RGBA2GRAY);
         
         // ADAPTIVE THRESHOLD (The key to lighting independence)
-        // Block Size 21, Constant 2 -> Robust for squares
-        cv.adaptiveThreshold(this.gray, this.binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 21, 2);
+        // Block Size 41, Constant 2 -> Smooths lighting noise for stable contours
+        cv.adaptiveThreshold(this.gray, this.binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 41, 2);
 
         // DEBUG VIEW: Show what computer sees if requested
         if(debugCanvas && !debugCanvas.classList.contains('hidden')) {
@@ -142,9 +142,9 @@ class VisionSystem {
                 cv.approxPolyDP(cnt, approx, 0.05 * peri, true);
 
                 if (approx.rows === 4 && cv.isContourConvex(approx)) {
-                    // CONTRAST CHECK: Look at the BINARY image, not GRAY
-                    // Binary is purely 0 (Black) or 255 (White)
-                    if(this._checkBinaryContrast(approx, w, h)) {
+                    // CONTRAST CHECK: Look at the GRAYSCALE image for intensity
+                    // Accept dark pixels (< 80) to handle real-world lighting
+                    if(this._checkGrayscaleContrast(approx, w, h)) {
                         if (area > maxArea) {
                             maxArea = area;
                             bestPose = this._getPose(approx, video.videoWidth, video.videoHeight, scale);
@@ -157,10 +157,10 @@ class VisionSystem {
         return bestPose;
     }
 
-    _checkBinaryContrast(approx, w, h) {
-        // Sample inside the corners of the BINARY image
-        // We expect Black (0)
-        let blackHits = 0;
+    _checkGrayscaleContrast(approx, w, h) {
+        // Sample inside the corners of the GRAYSCALE image
+        // We expect dark pixels (< 80) to handle real-world lighting
+        let darkHits = 0;
         const pts = [];
         let cx=0, cy=0;
         
@@ -177,12 +177,12 @@ class VisionSystem {
             const sy = Math.round(pts[k].y + (cy - pts[k].y) * 0.2);
             
             if(sx>=0 && sx<w && sy>=0 && sy<h) {
-                // In Binary Mat, 0 is Black. We want Black.
-                if(this.binary.ucharAt(sy, sx) === 0) blackHits++;
+                // Check grayscale intensity - accept dark pixels (< 80)
+                if(this.gray.ucharAt(sy, sx) < 80) darkHits++;
             }
         }
-        // If 3 or 4 corners are black inside, it's a marker!
-        return blackHits >= 3;
+        // If 3 or 4 corners are dark inside, it's a marker!
+        return darkHits >= 3;
     }
 
     _getPose(approx, vw, vh, scale) {
