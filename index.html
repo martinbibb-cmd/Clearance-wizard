@@ -59,8 +59,7 @@
             </select>
 
             <label>2. Appliance Model</label>
-            <select id="input-type">
-                </select>
+            <select id="input-type"></select>
 
             <button class="primary" onclick="App.startSession()">Start Camera</button>
         </div>
@@ -115,7 +114,7 @@ class VisionSystem {
         if(!this._ctx) {
             const c = document.createElement('canvas');
             c.width = w; c.height = h;
-            this._ctx = c.getContext('2d', {willReadFrequently:true});
+            this._ctx = c.getContext('2d');
         }
         this._ctx.drawImage(video, 0, 0, w, h);
         
@@ -194,7 +193,7 @@ class GraphicsEngine {
         // Boiler Blue Line
         const boxGeo = new THREE.BoxGeometry(data.w, data.h, 5);
         const boxEdges = new THREE.EdgesGeometry(boxGeo);
-        this.stencil.add(new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x005eb8, linewidth: 2 })));
+        this.stencil.add(new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x005eb8 })));
 
         // Clearance Red Dashed
         const c = data.clearance;
@@ -244,7 +243,14 @@ const App = {
 
     startSession: async function() {
         this.markerSize = parseInt(document.getElementById('input-size').value);
-        const index = document.getElementById('input-type').value;
+        const index = parseInt(document.getElementById('input-type').value);
+        
+        // Validate index
+        if(isNaN(index) || index < 0 || index >= BOILER_DB.length) {
+            console.error('Invalid boiler selection');
+            return;
+        }
+        
         const data = BOILER_DB[index];
 
         document.getElementById('menu-panel').classList.add('hidden');
