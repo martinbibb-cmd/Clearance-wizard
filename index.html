@@ -98,25 +98,27 @@ const APPLIANCE_DB = [
     { id: "flue", category: "flue", label: "Standard Round Terminal", type: "flue", radius: 50, clearance: 300 },
 
     // --- BOILERS ---
-    // Clearance: 50mm represents minimum safe side clearance to combustible materials
-    // Based on manufacturer specifications (typical minimum is 5mm, 50mm provides practical safety margin)
-    { id: "wb_4000", category: "boiler", label: "Worcester 4000 (Combi/System)", w: 400, h: 724, clearance: 50 },
-    { id: "wb_8000", category: "boiler", label: "Worcester 8000 (Life/Style)", w: 440, h: 780, clearance: 50 },
-    { id: "wb_ri",   category: "boiler", label: "Worcester Ri Compact", w: 390, h: 600, clearance: 50 },
-    { id: "wb_cdi",  category: "boiler", label: "Worcester CDi Compact", w: 390, h: 690, clearance: 50 },
-    { id: "ideal_logic", category: "boiler", label: "Ideal Logic+ / Max", w: 395, h: 700, clearance: 50 },
-    { id: "vaillant_pro", category: "boiler", label: "Vaillant ecoTEC Pro", w: 440, h: 720, clearance: 50 },
-    { id: "vaillant_pure", category: "boiler", label: "Vaillant ecoTEC Pure", w: 390, h: 700, clearance: 50 },
-    { id: "glowworm", category: "boiler", label: "Glow-worm Energy", w: 390, h: 700, clearance: 50 },
-    { id: "viessmann_050", category: "boiler", label: "Viessmann 050-W", w: 400, h: 700, clearance: 50 },
+    // Clearances now specified individually: top, bottom, left, right, front (service space)
+    // Based on manufacturer specifications from installation manuals
+    // Note: 'front' clearance represents service space depth and is stored for documentation,
+    // but is not rendered in the 2D top-down AR visualization
+    { id: "wb_4000", category: "boiler", label: "Worcester 4000 (Combi/System)", w: 400, h: 724, d: 310, clearance: { top: 30, bottom: 200, left: 5, right: 5, front: 600 } },
+    { id: "wb_8000", category: "boiler", label: "Worcester 8000 (CDi/Si Compact)", w: 440, h: 780, d: 365, clearance: { top: 30, bottom: 200, left: 5, right: 5, front: 450 } },
+    { id: "wb_ri",   category: "boiler", label: "Worcester Ri Compact", w: 390, h: 600, d: 270, clearance: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } },
+    { id: "wb_cdi",  category: "boiler", label: "Worcester CDi Compact", w: 390, h: 690, d: 310, clearance: { top: 30, bottom: 200, left: 5, right: 5, front: 450 } },
+    { id: "ideal_logic", category: "boiler", label: "Ideal Logic+ / Max", w: 395, h: 700, d: 310, clearance: { top: 50, bottom: 200, left: 5, right: 5, front: 450 } },
+    { id: "vaillant_pro", category: "boiler", label: "Vaillant ecoTEC Pro", w: 440, h: 720, d: 340, clearance: { top: 165, bottom: 150, left: 5, right: 5, front: 600 } },
+    { id: "vaillant_pure", category: "boiler", label: "Vaillant ecoTEC Pure", w: 390, h: 700, d: 320, clearance: { top: 165, bottom: 150, left: 5, right: 5, front: 600 } },
+    { id: "glowworm", category: "boiler", label: "Glow-worm Energy", w: 390, h: 700, d: 280, clearance: { top: 150, bottom: 150, left: 5, right: 5, front: 600 } },
+    { id: "viessmann_050", category: "boiler", label: "Viessmann 050-W", w: 400, h: 700, d: 300, clearance: { top: 50, bottom: 200, left: 5, right: 5, front: 450 } },
 
     // --- RADIATORS ---
-    { id: "rad_600_1000", category: "radiator", label: "Type 22 (600x1000)", w: 1000, h: 600, clearance: 150 },
-    { id: "rad_600_600",  category: "radiator", label: "Type 22 (600x600)", w: 600, h: 600, clearance: 150 },
+    { id: "rad_600_1000", category: "radiator", label: "Type 22 (600x1000)", w: 1000, h: 600, d: 100, clearance: { top: 150, bottom: 150, left: 150, right: 150, front: 150 } },
+    { id: "rad_600_600",  category: "radiator", label: "Type 22 (600x600)", w: 600, h: 600, d: 100, clearance: { top: 150, bottom: 150, left: 150, right: 150, front: 150 } },
     
     // --- CYLINDERS ---
-    { id: "cyl_std",  category: "cylinder", label: "Standard (150L)", w: 550, h: 1045, clearance: 300 },
-    { id: "cyl_slim", category: "cylinder", label: "Slimline (150L)", w: 475, h: 1300, clearance: 300 }
+    { id: "cyl_std",  category: "cylinder", label: "Standard (150L)", w: 550, h: 1045, d: 550, clearance: { top: 300, bottom: 300, left: 300, right: 300, front: 300 } },
+    { id: "cyl_slim", category: "cylinder", label: "Slimline (150L)", w: 475, h: 1300, d: 475, clearance: { top: 300, bottom: 300, left: 300, right: 300, front: 300 } }
 ];
 
 // ==========================================
@@ -263,21 +265,41 @@ class GraphicsEngine {
     }
 
     _createBox(data) {
-        // Boiler Blue Line
+        // Boiler Blue Line (the appliance itself)
         const boxGeo = new THREE.BoxGeometry(data.w, data.h, 5);
         const boxEdges = new THREE.EdgesGeometry(boxGeo);
         this.stencil.add(new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x005eb8 })));
 
-        // Clearance Red Dashed
-        const c = data.clearance;
-        const zW = data.w + (c*2);
-        const zH = data.h + (c*2);
+        // Clearance Red Zone - supporting both old format (number) and new format (object)
+        let clearanceTop, clearanceBottom, clearanceLeft, clearanceRight;
+        
+        if (typeof data.clearance === 'object' && data.clearance !== null && !Array.isArray(data.clearance)) {
+            // New multi-directional clearance format
+            clearanceTop = data.clearance.top || 0;
+            clearanceBottom = data.clearance.bottom || 0;
+            clearanceLeft = data.clearance.left || 0;
+            clearanceRight = data.clearance.right || 0;
+        } else {
+            // Old single-value format (for backward compatibility)
+            clearanceTop = clearanceBottom = clearanceLeft = clearanceRight = data.clearance || 0;
+        }
+        
+        const zW = data.w + clearanceLeft + clearanceRight;
+        const zH = data.h + clearanceTop + clearanceBottom;
+        
+        // Calculate offset for asymmetric clearances
+        const offsetX = (clearanceRight - clearanceLeft) / 2;
+        const offsetY = (clearanceTop - clearanceBottom) / 2;
+        
         const zoneGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(zW, zH, 5));
-        this.stencil.add(new THREE.LineSegments(zoneGeo, new THREE.LineBasicMaterial({ color: 0xe30613 })));
+        const zoneMesh = new THREE.LineSegments(zoneGeo, new THREE.LineBasicMaterial({ color: 0xe30613 }));
+        zoneMesh.position.set(offsetX, offsetY, 0);
+        this.stencil.add(zoneMesh);
 
         // Hatching
         const points = [];
-        const startX = -zW/2, endX = zW/2, startY = -zH/2, endY = zH/2;
+        const startX = -zW/2 + offsetX, endX = zW/2 + offsetX;
+        const startY = -zH/2 + offsetY, endY = zH/2 + offsetY;
         for(let x = startX; x < endX + zH; x += 40) {
             points.push(new THREE.Vector3(x, startY, -10));
             points.push(new THREE.Vector3(x - zH, endY, -10));
