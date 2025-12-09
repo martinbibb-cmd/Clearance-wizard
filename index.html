@@ -428,12 +428,12 @@ const App = {
             const customHeight = parseInt(document.getElementById('custom-radiator-height').value, 10);
             
             if (isNaN(customWidth) || customWidth < 100 || customWidth > 3000) {
-                alert('Please enter a valid radiator width between 100 and 3000 millimeters');
+                alert('Please enter a valid radiator width between 100 and 3000 mm');
                 return;
             }
             
             if (isNaN(customHeight) || customHeight < 100 || customHeight > 2000) {
-                alert('Please enter a valid radiator height between 100 and 2000 millimeters');
+                alert('Please enter a valid radiator height between 100 and 2000 mm');
                 return;
             }
             
@@ -528,7 +528,8 @@ const App = {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            // Format: YYYY-MM-DDTHH-MM-SS (remove milliseconds and timezone)
+            const timestamp = new Date().toISOString().split('.')[0].replace(/[:.]/g, '-');
             a.download = 'clearance-check-' + timestamp + '.png';
             document.body.appendChild(a);
             a.click();
