@@ -157,7 +157,7 @@ class VisionSystem {
 
         let bestPose = null;
         let maxArea = 0;
-        const minArea = 800;  // Minimum area to consider (reduced from 500 for better sensitivity)
+        const minArea = 800;  // Minimum area to consider (increased from 500 for more selective detection)
         const maxArea_limit = (w * h) * 0.7;  // Don't consider shapes larger than 70% of frame
 
         for (let i = 0; i < this.contours.size(); ++i) {
@@ -175,7 +175,7 @@ class VisionSystem {
                     const aspectRatio = Math.max(rect.width, rect.height) / Math.min(rect.width, rect.height);
                     
                     // Accept markers with aspect ratio between 0.7 and 1.4 (more permissive)
-                    if (aspectRatio < 1.4 && area > maxArea) {
+                    if (aspectRatio > 0.7 && aspectRatio < 1.4 && area > maxArea) {
                         maxArea = area;
                         bestPose = this._getPose(approx, video.videoWidth, video.videoHeight, scale, markerSize);
                     }
