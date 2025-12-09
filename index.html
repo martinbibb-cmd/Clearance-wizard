@@ -174,8 +174,8 @@ class VisionSystem {
                     const rect = cv.boundingRect(approx);
                     const aspectRatio = Math.max(rect.width, rect.height) / Math.min(rect.width, rect.height);
                     
-                    // Accept markers with aspect ratio between 0.7 and 1.4 (more permissive)
-                    if (aspectRatio > 0.7 && aspectRatio < 1.4 && area > maxArea) {
+                    // Accept markers with aspect ratio <= 1.4 (roughly square)
+                    if (aspectRatio <= 1.4 && area > maxArea) {
                         maxArea = area;
                         bestPose = this._getPose(approx, video.videoWidth, video.videoHeight, scale, markerSize);
                     }
