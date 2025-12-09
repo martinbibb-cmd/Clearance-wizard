@@ -98,6 +98,8 @@ const APPLIANCE_DB = [
     { id: "flue", category: "flue", label: "Standard Round Terminal", type: "flue", radius: 50, clearance: 300 },
 
     // --- BOILERS ---
+    // Clearance: 50mm represents minimum safe side clearance to combustible materials
+    // Based on manufacturer specifications (typical minimum is 5mm, 50mm provides practical safety margin)
     { id: "wb_4000", category: "boiler", label: "Worcester 4000 (Combi/System)", w: 400, h: 724, clearance: 50 },
     { id: "wb_8000", category: "boiler", label: "Worcester 8000 (Life/Style)", w: 440, h: 780, clearance: 50 },
     { id: "wb_ri",   category: "boiler", label: "Worcester Ri Compact", w: 390, h: 600, clearance: 50 },
