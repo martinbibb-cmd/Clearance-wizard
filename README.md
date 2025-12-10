@@ -35,22 +35,22 @@ http://localhost:8000
 - Custom marker and appliance sizing
 - Real-time camera tracking and overlay
 
-## ArUco Markers
+## Marker Detection
 
-This application uses ArUco markers for AR tracking. You need to have pre-printed markers to use the app.
+This application uses computer vision to detect square markers for AR tracking. You need to have a printed square marker (ideally black on white background) to use the app.
 
-**How to get markers:**
+**How to create markers:**
 
-1. **Download pre-generated markers**: You can download a PDF with ArUco markers from various online sources
-2. **Generate markers yourself**: Use Python with OpenCV to generate markers from the DICT_4X4_50 dictionary (IDs 0-49)
-3. **Online generators**: Search for "ArUco marker generator DICT_4X4_50" online
+1. **Print a simple square**: Any black square on white paper will work
+2. **Use QR codes**: QR codes work well as they're already square
+3. **Create a custom pattern**: Draw or print any high-contrast square shape
 
 **Recommended marker sizes:**
-- 43mm (credit card size) - Most portable
-- 53mm - Good balance
+- 45mm - Default setting
+- 53mm (credit card size) - Good balance
 - 160mm or larger - Better detection at distance
 
-Print the markers on white paper with a black printer for best results.
+Print the markers on white paper with a black printer for best results. The app detects the square shape using contour detection.
 
 ## Troubleshooting
 

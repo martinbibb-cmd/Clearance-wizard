@@ -144,8 +144,8 @@
 // Loading process:
 // 1. First attempts to load from local ./opencv.js file (included in repository)
 // 2. If local file not found, falls back to CDN: https://docs.opencv.org/4.5.2/opencv.js
-// 3. onload fires -> App.onCvLoaded() starts polling for cv.aruco
-// 4. Internal OpenCV initialization completes (cv.aruco becomes available)
+// 3. onload fires -> App.onCvLoaded() starts polling for cv.Mat
+// 4. Internal OpenCV initialization completes (cv.Mat becomes available)
 // 5. Buttons are enabled and app is ready
 //
 // OpenCV.js is now bundled with the repository:
@@ -421,8 +421,8 @@ const App = {
         }, 10000); 
 
         const checkCvReady = () => {
-            // Check 1: Global cv object exists, Check 2: ArUco functionality is exposed
-            if (typeof cv !== 'undefined' && cv.aruco) { 
+            // Check 1: Global cv object exists, Check 2: Basic OpenCV functionality is available
+            if (typeof cv !== 'undefined' && cv.Mat) {
                 clearTimeout(this.loadTimeoutId); // Clear the failure timer
                 this.cvReady = true;
                 this.updateModels();
