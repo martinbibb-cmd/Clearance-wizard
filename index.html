@@ -73,8 +73,16 @@
             </select>
 
             <label>3. Select Model</label>
-            <select id="input-type">
+            <select id="input-type" onchange="App.onModelChange()">
             </select>
+
+            <div id="custom-radiator-container" class="hidden">
+                <label>Radiator Width (mm)</label>
+                <input type="number" id="custom-radiator-width" min="100" max="3000" step="1" value="1000" placeholder="Enter width in mm" aria-label="Custom radiator width in millimeters">
+                
+                <label>Radiator Height (mm)</label>
+                <input type="number" id="custom-radiator-height" min="100" max="2000" step="1" value="600" placeholder="Enter height in mm" aria-label="Custom radiator height in millimeters">
+            </div>
 
             <button class="primary" onclick="App.startSession()">Start Camera</button>
         </div>
@@ -85,6 +93,7 @@
         </div>
 
         <div id="result-panel" class="control-bar interactive hidden">
+            <button class="btn-round" style="background: var(--wb-blue); color: white;" onclick="App.captureImage()" aria-label="Capture AR view" title="Capture current AR view as image">📷</button>
             <button class="primary" style="max-width:200px;" onclick="location.reload()">New Check</button>
         </div>
     </div>
@@ -115,6 +124,7 @@ const APPLIANCE_DB = [
     // --- RADIATORS ---
     { id: "rad_600_1000", category: "radiator", label: "Type 22 (600x1000)", w: 1000, h: 600, d: 100, clearance: { top: 150, bottom: 150, left: 150, right: 150, front: 150 } },
     { id: "rad_600_600",  category: "radiator", label: "Type 22 (600x600)", w: 600, h: 600, d: 100, clearance: { top: 150, bottom: 150, left: 150, right: 150, front: 150 } },
+    { id: "rad_custom",   category: "radiator", label: "Custom Size...", w: 1000, h: 600, d: 100, clearance: { top: 150, bottom: 150, left: 150, right: 150, front: 150 } },
     
     // --- CYLINDERS ---
     { id: "cyl_std",  category: "cylinder", label: "Standard (150L)", w: 550, h: 1045, d: 550, clearance: { top: 300, bottom: 300, left: 300, right: 300, front: 300 } },
@@ -345,6 +355,25 @@ const App = {
         }
     },
 
+    // Handle model selection change
+    onModelChange: function() {
+        const modelSelect = document.getElementById('input-type');
+        const customRadiatorContainer = document.getElementById('custom-radiator-container');
+        const index = parseInt(modelSelect.value, 10);
+        
+        // Check if the selected model is the custom radiator
+        if (!isNaN(index) && index >= 0 && index < APPLIANCE_DB.length) {
+            const selectedItem = APPLIANCE_DB[index];
+            if (selectedItem.id === 'rad_custom') {
+                customRadiatorContainer.classList.remove('hidden');
+            } else {
+                customRadiatorContainer.classList.add('hidden');
+            }
+        } else {
+            customRadiatorContainer.classList.add('hidden');
+        }
+    },
+
     // NEW FUNCTION: Filters the list based on category
     updateModels: function() {
         const category = document.getElementById('input-category').value;
@@ -363,6 +392,9 @@ const App = {
                 modelSelect.appendChild(opt);
             }
         });
+        
+        // Trigger model change to update custom input visibility
+        this.onModelChange();
     },
 
     startSession: async function() {
@@ -388,7 +420,26 @@ const App = {
             return;
         }
         
-        const data = APPLIANCE_DB[index];
+        let data = APPLIANCE_DB[index];
+        
+        // Handle custom radiator dimensions
+        if (data.id === 'rad_custom') {
+            const customWidth = parseInt(document.getElementById('custom-radiator-width').value, 10);
+            const customHeight = parseInt(document.getElementById('custom-radiator-height').value, 10);
+            
+            if (isNaN(customWidth) || customWidth < 100 || customWidth > 3000) {
+                alert('Please enter a valid radiator width between 100 and 3000 mm');
+                return;
+            }
+            
+            if (isNaN(customHeight) || customHeight < 100 || customHeight > 2000) {
+                alert('Please enter a valid radiator height between 100 and 2000 mm');
+                return;
+            }
+            
+            // Create a copy of the data with custom dimensions
+            data = { ...data, w: customWidth, h: customHeight };
+        }
 
         document.getElementById('menu-panel').classList.add('hidden');
         document.getElementById('controls-panel').classList.remove('hidden');
@@ -453,7 +504,39 @@ const App = {
         document.getElementById('controls-panel').classList.add('hidden');
         document.getElementById('result-panel').classList.remove('hidden');
     },
-    resetObject: function() { this.graphics.stencil.position.set(150,0,0); }
+    resetObject: function() { this.graphics.stencil.position.set(150,0,0); },
+    
+    captureImage: function() {
+        // Capture the current frozen AR view (video is paused after lock)
+        // This captures the locked frame with AR overlay for download
+        const canvas = document.createElement('canvas');
+        const video = document.getElementById('camera-layer');
+        const arCanvas = document.getElementById('ar-layer');
+        
+        canvas.width = arCanvas.width;
+        canvas.height = arCanvas.height;
+        const ctx = canvas.getContext('2d');
+        
+        // Draw the video frame first
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // Draw the AR overlay on top
+        ctx.drawImage(arCanvas, 0, 0);
+        
+        // Convert to blob and download
+        canvas.toBlob(function(blob) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            // Format: YYYY-MM-DDTHH-MM-SS (remove milliseconds and timezone)
+            const timestamp = new Date().toISOString().split('.')[0].replace(/[:.]/g, '-');
+            a.download = 'clearance-check-' + timestamp + '.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 'image/png');
+    }
 };
 </script>
 </body>
