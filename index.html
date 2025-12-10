@@ -369,6 +369,8 @@ const App = {
 
     onCvLoaded: function() { 
         // Wait for OpenCV to be fully initialized
+        let retryCount = 0;
+        const maxRetries = 50; // 5 seconds maximum wait time
         const checkCvReady = () => {
             if (typeof cv !== 'undefined' && cv.aruco) {
                 this.cvReady = true;
@@ -376,9 +378,14 @@ const App = {
                 // (Defaulting to 'boiler' which is first in the HTML list)
                 this.updateModels(); 
                 console.log("OpenCV Ready");
-            } else {
+            } else if (retryCount < maxRetries) {
                 // Check again after a short delay
+                retryCount++;
                 setTimeout(checkCvReady, 100);
+            } else {
+                // Timeout after max retries
+                console.error("OpenCV initialization timeout");
+                alert("OpenCV library failed to initialize. Please refresh the page and try again.");
             }
         };
         checkCvReady();
@@ -558,7 +565,7 @@ const App = {
     resetObject: function() { this.graphics.stencil.position.set(150,0,0); },
     
     generateArUcoMarkers: function() {
-        if (!this.cvReady || typeof cv === 'undefined' || typeof cv.aruco === 'undefined') {
+        if (!this.cvReady) {
             alert("OpenCV is still loading. Please wait a moment and try again.");
             return;
         }
