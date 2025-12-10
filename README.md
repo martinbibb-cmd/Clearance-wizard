@@ -28,16 +28,47 @@ npx http-server -p 8000
 
 Then open your browser and navigate to:
 ```
-http://localhost:8000
+http://localhost:8000              # AR Clearance Tool
+http://localhost:8000/voice-notes.html  # Voice-to-Notes PWA
 ```
 
 ## Features
 
+### AR Clearance Tool (`index.html`)
 - AR-based clearance visualization using ArUco markers
 - Support for multiple appliance types (boilers, radiators, cylinders, flues)
 - Custom marker and appliance sizing
 - ArUco marker generator for printing
 - Real-time camera tracking and overlay
+
+### Voice-to-Notes PWA (`voice-notes.html`)
+- Voice recognition using Web Speech API
+- Real-time speech-to-text transcription
+- Automatic categorization into Engineer and Customer summaries
+- Offline support via Service Worker
+- Can be installed as a Progressive Web App (PWA)
+- Works on mobile and desktop browsers with microphone access
+
+## Using Voice-to-Notes
+
+1. Open `voice-notes.html` in your browser
+2. Click the "🎙️ Start Recording" button
+3. Allow microphone access when prompted
+4. Speak your notes - they will appear in real-time in the "Raw Transcript" box
+5. Click "🛑 Stop Recording & Summarize" when finished
+6. View the automatically categorized notes in:
+   - **Engineer's Summary (Blue)**: Technical details and specifications
+   - **Customer Summary (Green)**: Customer-friendly explanations
+
+### Customizing Categorization
+
+Edit the `categorizeAndSummarize()` function in `app.js` to add your own keywords and categorization logic. For example:
+
+```javascript
+if (lowerText.includes("your keyword")) {
+    engineerNotes.push("Your custom note here");
+}
+```
 
 ## Troubleshooting
 
@@ -50,6 +81,13 @@ If you see "Loading OpenCV..." or initialization errors:
 
 ## Browser Compatibility
 
+### AR Clearance Tool
 - Requires a modern browser with WebRTC support (Chrome, Firefox, Safari, Edge)
 - Camera access is required for AR functionality
 - Works best on mobile devices with rear-facing cameras
+
+### Voice-to-Notes PWA
+- Requires Web Speech API support (Chrome, Edge, Safari 14.1+)
+- Microphone access required for voice recording
+- Best experience on Chrome/Edge (continuous recognition)
+- Can be installed as a PWA on supported devices

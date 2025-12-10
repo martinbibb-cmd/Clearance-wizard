@@ -1,0 +1,22 @@
+{
+  "name": "Voice Note Picker - Clearance Wizard",
+  "short_name": "Voice Notes",
+  "description": "Voice-to-text note taking with engineer and customer summaries",
+  "start_url": "/voice-notes.html",
+  "display": "standalone",
+  "background_color": "#667eea",
+  "theme_color": "#667eea",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23667eea'/><text x='50' y='50' text-anchor='middle' dominant-baseline='middle' font-size='60' fill='white'>🎙️</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23667eea'/><text x='50' y='50' text-anchor='middle' dominant-baseline='middle' font-size='60' fill='white'>🎙️</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
