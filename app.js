@@ -18,6 +18,7 @@ if (!SpeechRecognition) {
     recognition.interimResults = true; // Show results as you speak
 
     let isRecording = false;
+    let fullTranscript = ''; // Persistent transcript accumulator
 
     voiceButton.onclick = () => {
         if (!isRecording) {
@@ -28,6 +29,7 @@ if (!SpeechRecognition) {
             rawTranscript.value = ""; // Clear old notes
             engineerOutput.innerHTML = "";
             customerOutput.innerHTML = "";
+            fullTranscript = ''; // Reset transcript for new recording
         } else {
             recognition.stop();
             isRecording = false;
@@ -39,17 +41,17 @@ if (!SpeechRecognition) {
 
     // --- VOICE-TO-TEXT HANDLING ---
     recognition.onresult = (event) => {
-        let final_transcript = '';
+        let interim_transcript = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
-                final_transcript += event.results[i][0].transcript;
+                fullTranscript += event.results[i][0].transcript;
             } else {
-                // Show interim results in the textarea
-                rawTranscript.value = final_transcript + event.results[i][0].transcript;
+                // Accumulate interim results
+                interim_transcript += event.results[i][0].transcript;
             }
         }
-        // Append final transcript chunks
-        rawTranscript.value = final_transcript;
+        // Display full transcript plus interim results
+        rawTranscript.value = fullTranscript + interim_transcript;
     };
 
     // --- SUMMARIZATION TRIGGERED ON STOP ---

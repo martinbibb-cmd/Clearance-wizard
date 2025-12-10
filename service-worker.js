@@ -3,10 +3,9 @@
 
 const CACHE_NAME = 'voice-notes-v1';
 const urlsToCache = [
-  '/',
   '/voice-notes.html',
   '/app.js',
-  '/index.html'
+  '/manifest.json'
 ];
 
 // Install event - cache files
