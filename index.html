@@ -36,7 +36,8 @@
         label { display: block; font-size: 0.8rem; color: #666; margin-bottom: 5px; font-weight: 700; text-transform: uppercase; }
         select, button, input[type="number"] { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 15px; font-size: 1rem; background: white; }
         
-        button.primary { background: var(--wb-blue); color: white; border: none; font-weight: 600; }
+        button.primary { background: var(--wb-blue); color: white; border: none; font-weight: 600; cursor: pointer; }
+        button.primary:disabled { background: #999; cursor: not-allowed; opacity: 0.7; }
         
         #status-pill { 
             align-self: center; margin-top: 50px; padding: 10px 25px; border-radius: 30px; 
@@ -97,13 +98,13 @@
                 <input type="number" id="custom-radiator-height" min="100" max="2000" step="1" value="600" placeholder="Enter height in mm" aria-label="Custom radiator height in millimeters">
             </div>
 
-            <button class="primary" onclick="App.startSession()">Start Camera</button>
+            <button id="start-camera-btn" class="primary" onclick="App.startSession()" disabled>Loading OpenCV...</button>
         </div>
 
         <div id="ar-generator-panel" class="card interactive">
             <h1>📄 arUco Marker Generator</h1>
             <p style="font-size:0.9rem; color:#666;">Print credit-card sized markers (43mm) to use for clearance checks.</p>
-            <button class="primary" onclick="App.generateArUcoMarkers()">Generate & Print (43mm)</button>
+            <button id="generate-markers-btn" class="primary" onclick="App.generateArUcoMarkers()" disabled>Loading OpenCV...</button>
             <div id="marker-print-area" class="hidden"></div>
         </div>
 
@@ -367,14 +368,27 @@ const App = {
     locked: false,
     cvReady: false,
 
-    onCvLoaded: function() { 
+    onCvLoaded: function() {
         // Wait for OpenCV to be fully initialized
         const checkCvReady = () => {
             if (typeof cv !== 'undefined' && cv.aruco) {
                 this.cvReady = true;
                 // When CV loads, populate the dropdown for the first time
                 // (Defaulting to 'boiler' which is first in the HTML list)
-                this.updateModels(); 
+                this.updateModels();
+
+                // Enable buttons and update text
+                const startBtn = document.getElementById('start-camera-btn');
+                const generateBtn = document.getElementById('generate-markers-btn');
+                if (startBtn) {
+                    startBtn.disabled = false;
+                    startBtn.textContent = 'Start Camera';
+                }
+                if (generateBtn) {
+                    generateBtn.disabled = false;
+                    generateBtn.textContent = 'Generate & Print (43mm)';
+                }
+
                 console.log("OpenCV Ready");
             } else {
                 // Check again after a short delay
@@ -386,6 +400,19 @@ const App = {
     
     onCvError: function() {
         console.error("Failed to load OpenCV.js");
+
+        // Update button states to show error
+        const startBtn = document.getElementById('start-camera-btn');
+        const generateBtn = document.getElementById('generate-markers-btn');
+        if (startBtn) {
+            startBtn.textContent = 'OpenCV Failed to Load';
+            startBtn.style.background = '#e30613';
+        }
+        if (generateBtn) {
+            generateBtn.textContent = 'OpenCV Failed to Load';
+            generateBtn.style.background = '#e30613';
+        }
+
         alert("Failed to load OpenCV library. Please check your internet connection and refresh the page.");
     },
 
