@@ -37,7 +37,7 @@
         select, button, input[type="number"] { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 15px; font-size: 1rem; background: white; }
         
         button.primary { background: var(--wb-blue); color: white; border: none; font-weight: 600; cursor: pointer; }
-        button.primary:disabled { background: #999; cursor: not-allowed; opacity: 0.7; }
+        button.primary:disabled { background: #999; cursor: not-allowed; opacity: 0.7; } /* Disabled button styling */
         
         #status-pill { 
             align-self: center; margin-top: 50px; padding: 10px 25px; border-radius: 30px; 
@@ -128,10 +128,6 @@ const APPLIANCE_DB = [
     { id: "flue", category: "flue", label: "Standard Round Terminal", type: "flue", radius: 50, clearance: 300 },
 
     // --- BOILERS ---
-    // Clearances now specified individually: top, bottom, left, right, front (service space)
-    // Based on manufacturer specifications from installation manuals
-    // Note: 'front' clearance represents service space depth and is stored for documentation,
-    // but is not rendered in the 2D top-down AR visualization
     { id: "wb_4000", category: "boiler", label: "Worcester 4000 (Combi/System)", w: 400, h: 724, d: 310, clearance: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } },
     { id: "wb_8000", category: "boiler", label: "Worcester 8000 (CDi/Si Compact)", w: 440, h: 780, d: 365, clearance: { top: 170, bottom: 200, left: 5, right: 5, front: 450 } },
     { id: "wb_ri",   category: "boiler", label: "Worcester Ri Compact", w: 390, h: 600, d: 270, clearance: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } },
@@ -209,8 +205,8 @@ class VisionSystem {
 
         let bestPose = null;
         let maxArea = 0;
-        const minArea = 800;  // Minimum area to consider (increased from 500 for more selective detection)
-        const maxArea_limit = (w * h) * 0.7;  // Don't consider shapes larger than 70% of frame
+        const minArea = 800;
+        const maxArea_limit = (w * h) * 0.7;
 
         for (let i = 0; i < this.contours.size(); ++i) {
             let cnt = this.contours.get(i);
@@ -219,7 +215,7 @@ class VisionSystem {
             if (area > minArea && area < maxArea_limit) {
                 let peri = cv.arcLength(cnt, true);
                 let approx = new cv.Mat();
-                cv.approxPolyDP(cnt, approx, 0.02 * peri, true);  // More aggressive approximation (was 0.04)
+                cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
                 
                 if (approx.rows === 4 && cv.isContourConvex(approx)) {
                     // Check if it's roughly square by comparing aspect ratio
@@ -296,7 +292,7 @@ class GraphicsEngine {
     }
 
     _createBox(data) {
-        // Clearance Red Zone calculations (Kept as is)
+        // Clearance Red Zone calculations
         let clearanceTop, clearanceBottom, clearanceLeft, clearanceRight;
         
         if (typeof data.clearance === 'object' && data.clearance !== null && !Array.isArray(data.clearance)) {
@@ -314,13 +310,13 @@ class GraphicsEngine {
         const offsetX = (clearanceRight - clearanceLeft) / 2;
         const offsetY = (clearanceTop - clearanceBottom) / 2;
         
-        // 1. Draw Clearance Zone (Red Outline) - UNCHANGED
+        // 1. Draw Clearance Zone (Red Outline)
         const zoneGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(zW, zH, 5));
         const zoneMesh = new THREE.LineSegments(zoneGeo, new THREE.LineBasicMaterial({ color: 0xe30613 }));
         zoneMesh.position.set(offsetX, offsetY, 0);
         this.stencil.add(zoneMesh);
 
-        // 2. Draw Appliance (Blue Outline) - UNCHANGED
+        // 2. Draw Appliance (Blue Outline)
         const boxGeo = new THREE.BoxGeometry(data.w, data.h, 5);
         const boxEdges = new THREE.EdgesGeometry(boxGeo);
         this.stencil.add(new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x005eb8 })));
@@ -333,7 +329,6 @@ class GraphicsEngine {
         this.stencil.add(zoneFillMesh);
 
         // 4. Hatching clipped to the Clearance Zone (The full red box)
-        // The hatching represents the minimum required clearance space
         const hatchPoints = [];
         const startX = -zW/2 + offsetX, endX = zW/2 + offsetX;
         const startY = -zH/2 + offsetY, endY = zH/2 + offsetY;
@@ -366,15 +361,13 @@ const App = {
     vision: new VisionSystem(),
     graphics: null,
     locked: false,
-    cvReady: false,
+    cvReady: false, // NEW: Flag to track OpenCV status
 
     onCvLoaded: function() {
-        // Wait for OpenCV to be fully initialized
+        // Wait for OpenCV's internal initialization to complete (cv.aruco will exist)
         const checkCvReady = () => {
             if (typeof cv !== 'undefined' && cv.aruco) {
                 this.cvReady = true;
-                // When CV loads, populate the dropdown for the first time
-                // (Defaulting to 'boiler' which is first in the HTML list)
                 this.updateModels();
 
                 // Enable buttons and update text
@@ -447,7 +440,7 @@ const App = {
         }
     },
 
-    // NEW FUNCTION: Filters the list based on category
+    // Filters the list based on category
     updateModels: function() {
         const category = document.getElementById('input-category').value;
         const modelSelect = document.getElementById('input-type');
@@ -471,8 +464,9 @@ const App = {
     },
 
     startSession: async function() {
+        // Guard clause: ensure CV is ready before starting the session
         if (!this.cvReady) {
-            alert("OpenCV is still loading. Please wait a moment and try again.");
+            alert("OpenCV is still loading. Please wait a moment.");
             return;
         }
         
@@ -586,14 +580,15 @@ const App = {
     resetObject: function() { this.graphics.stencil.position.set(150,0,0); },
     
     generateArUcoMarkers: function() {
+        // Guard clause: ensure CV is ready
         if (!this.cvReady || typeof cv === 'undefined' || typeof cv.aruco === 'undefined') {
-            alert("OpenCV is still loading. Please wait a moment and try again.");
+            alert("OpenCV is still loading. Please wait a moment.");
             return;
         }
 
-        const dict = new cv.aruco.Dictionary(cv.aruco.DICT_4X4_50); // A common dictionary
-        const markerSizePx = 300; // Pixel size for the generated canvas marker (will be scaled down by CSS)
-        const markerCount = 12; // Number of markers to print on A4 (3 wide x 4 high)
+        const dict = new cv.aruco.Dictionary(cv.aruco.DICT_4X4_50);
+        const markerSizePx = 300;
+        const markerCount = 12;
         const printArea = document.getElementById('marker-print-area');
         printArea.innerHTML = '';
         printArea.classList.remove('hidden');
@@ -608,25 +603,19 @@ const App = {
                 canvas.height = markerSizePx;
                 container.appendChild(canvas);
                 
-                // Create the OpenCV Mat for the marker
                 let markerMat = new cv.Mat(markerSizePx, markerSizePx, cv.CV_8UC1);
                 
                 try {
-                    // The marker ID is its index (0 to 11)
-                    // The last argument (1) is the border size, which is important for detection
                     cv.aruco.drawMarker(dict, i, markerSizePx, markerMat, 1);
-                    
-                    // Display the Mat on the canvas
                     cv.imshow(canvas, markerMat);
                 } finally {
-                    // Clean up the Mat (ensure cleanup even if there's an error)
                     markerMat.delete();
                 }
                 
                 printArea.appendChild(container);
             }
             
-            // Initiate printing after a short delay to ensure markers are rendered
+            // Initiate printing after a short delay
             setTimeout(() => window.print(), 100);
         } catch (error) {
             console.error('Error generating markers:', error);
@@ -635,39 +624,38 @@ const App = {
         }
     },
     
+    // UPDATED FUNCTION: Correctly captures video with 'object-fit: cover' behavior
     captureImage: function() {
-        // Capture the current frozen AR view (video is paused after lock)
-        // This captures the locked frame with AR overlay for download
         const canvas = document.createElement('canvas');
         const video = document.getElementById('camera-layer');
         const arCanvas = document.getElementById('ar-layer');
 
-        // Use window dimensions to match the AR canvas size
+        // Use window dimensions to match the AR canvas size (which is full screen)
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         const ctx = canvas.getContext('2d');
 
-        // Calculate video dimensions to match object-fit: cover behavior
+        // --- Calculate video draw parameters to replicate object-fit: cover ---
         const videoAspect = video.videoWidth / video.videoHeight;
         const canvasAspect = canvas.width / canvas.height;
 
         let drawWidth, drawHeight, offsetX, offsetY;
 
         if (videoAspect > canvasAspect) {
-            // Video is wider - fit to height and crop sides
+            // Video is wider than canvas ratio (covers height, cropped horizontally)
             drawHeight = canvas.height;
             drawWidth = drawHeight * videoAspect;
             offsetX = (canvas.width - drawWidth) / 2;
             offsetY = 0;
         } else {
-            // Video is taller - fit to width and crop top/bottom
+            // Video is taller than canvas ratio (covers width, cropped vertically)
             drawWidth = canvas.width;
             drawHeight = drawWidth / videoAspect;
             offsetX = 0;
             offsetY = (canvas.height - drawHeight) / 2;
         }
 
-        // Draw the video frame with object-fit: cover behavior
+        // Draw the video frame with the correct scale and offset
         ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
 
         // Draw the AR overlay on top
@@ -678,7 +666,6 @@ const App = {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            // Format: YYYY-MM-DDTHH-MM-SS (remove milliseconds and timezone)
             const timestamp = new Date().toISOString().split('.')[0].replace(/[:.]/g, '-');
             a.download = 'clearance-check-' + timestamp + '.png';
             document.body.appendChild(a);
