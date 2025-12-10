@@ -20,6 +20,18 @@
         .card { background: rgba(255,255,255,0.95); padding: 20px; border-radius: 12px; margin: 20px auto; width: 90%; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
         .hidden { display: none !important; }
         
+        /* ArUco Marker Generator Styles */
+        #ar-generator-panel { margin-top: 10px; }
+        #marker-print-area { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; justify-items: center; padding: 10px; border: 1px dashed #ccc; background: #f9f9f9; }
+        .marker-container { width: 43mm; height: 43mm; display: flex; align-items: center; justify-content: center; }
+        .marker-container canvas { width: 100%; height: 100%; object-fit: contain; }
+        @media print {
+            body * { visibility: hidden; }
+            #marker-print-area, #marker-print-area * { visibility: visible; }
+            #marker-print-area { position: absolute; left: 0; top: 0; margin: 0; padding: 0; border: none; background: white; width: 210mm; }
+            .marker-container { width: 43mm; height: 43mm; margin: 5mm; }
+        }
+        
         h1 { margin: 0 0 15px 0; font-size: 1.2rem; color: #333; text-align: center; }
         label { display: block; font-size: 0.8rem; color: #666; margin-bottom: 5px; font-weight: 700; text-transform: uppercase; }
         select, button, input[type="number"] { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 15px; font-size: 1rem; background: white; }
@@ -85,6 +97,13 @@
             </div>
 
             <button class="primary" onclick="App.startSession()">Start Camera</button>
+        </div>
+
+        <div id="ar-generator-panel" class="card interactive">
+            <h1>📄 arUco Marker Generator</h1>
+            <p style="font-size:0.9rem; color:#666;">Print credit-card sized markers (43mm) to use for clearance checks.</p>
+            <button class="primary" onclick="App.generateArUcoMarkers()">Generate & Print (43mm)</button>
+            <div id="marker-print-area" class="hidden"></div>
         </div>
 
         <div id="controls-panel" class="control-bar interactive hidden">
@@ -275,47 +294,57 @@ class GraphicsEngine {
     }
 
     _createBox(data) {
-        // Boiler Blue Line (the appliance itself)
-        const boxGeo = new THREE.BoxGeometry(data.w, data.h, 5);
-        const boxEdges = new THREE.EdgesGeometry(boxGeo);
-        this.stencil.add(new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x005eb8 })));
-
-        // Clearance Red Zone - supporting both old format (number) and new format (object)
+        // Clearance Red Zone calculations (Kept as is)
         let clearanceTop, clearanceBottom, clearanceLeft, clearanceRight;
         
         if (typeof data.clearance === 'object' && data.clearance !== null && !Array.isArray(data.clearance)) {
-            // New multi-directional clearance format
             clearanceTop = data.clearance.top || 0;
             clearanceBottom = data.clearance.bottom || 0;
             clearanceLeft = data.clearance.left || 0;
             clearanceRight = data.clearance.right || 0;
         } else {
-            // Old single-value format (for backward compatibility)
             clearanceTop = clearanceBottom = clearanceLeft = clearanceRight = data.clearance || 0;
         }
         
         const zW = data.w + clearanceLeft + clearanceRight;
         const zH = data.h + clearanceTop + clearanceBottom;
         
-        // Calculate offset for asymmetric clearances
         const offsetX = (clearanceRight - clearanceLeft) / 2;
         const offsetY = (clearanceTop - clearanceBottom) / 2;
         
+        // 1. Draw Clearance Zone (Red Outline) - UNCHANGED
         const zoneGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(zW, zH, 5));
         const zoneMesh = new THREE.LineSegments(zoneGeo, new THREE.LineBasicMaterial({ color: 0xe30613 }));
         zoneMesh.position.set(offsetX, offsetY, 0);
         this.stencil.add(zoneMesh);
 
-        // Hatching
-        const points = [];
+        // 2. Draw Appliance (Blue Outline) - UNCHANGED
+        const boxGeo = new THREE.BoxGeometry(data.w, data.h, 5);
+        const boxEdges = new THREE.EdgesGeometry(boxGeo);
+        this.stencil.add(new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x005eb8 })));
+
+        // 3. Add transparent fill to clearance zone for better visual clarity
+        const zoneFillGeo = new THREE.PlaneGeometry(zW, zH);
+        const zoneFillMat = new THREE.MeshBasicMaterial({ color: 0xe30613, opacity: 0.1, transparent: true, side: THREE.DoubleSide });
+        const zoneFillMesh = new THREE.Mesh(zoneFillGeo, zoneFillMat);
+        zoneFillMesh.position.set(offsetX, offsetY, -2);
+        this.stencil.add(zoneFillMesh);
+
+        // 4. Hatching clipped to the Clearance Zone (The full red box)
+        // The hatching represents the minimum required clearance space
+        const hatchPoints = [];
         const startX = -zW/2 + offsetX, endX = zW/2 + offsetX;
         const startY = -zH/2 + offsetY, endY = zH/2 + offsetY;
-        for(let x = startX; x < endX + zH; x += 40) {
-            points.push(new THREE.Vector3(x, startY, -10));
-            points.push(new THREE.Vector3(x - zH, endY, -10));
+
+        // Diagonal hatching lines (45 degrees)
+        for(let x = startX - zH; x < endX + zH; x += 40) {
+            // Line from (x, startY) to (x + zH, endY)
+            hatchPoints.push(new THREE.Vector3(x, startY, 0));
+            hatchPoints.push(new THREE.Vector3(x + zH, endY, 0));
         }
-        const hatchMat = new THREE.LineBasicMaterial({ color: 0xe30613, opacity: 0.3, transparent: true });
-        this.stencil.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), hatchMat));
+        
+        const hatchMat = new THREE.LineBasicMaterial({ color: 0xe30613, opacity: 0.5, transparent: true });
+        this.stencil.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(hatchPoints), hatchMat));
     }
 
     _createRadial(data) {
@@ -505,6 +534,48 @@ const App = {
         document.getElementById('result-panel').classList.remove('hidden');
     },
     resetObject: function() { this.graphics.stencil.position.set(150,0,0); },
+    
+    generateArUcoMarkers: function() {
+        if (typeof cv === 'undefined' || typeof cv.aruco === 'undefined') {
+            alert("OpenCV is still loading. Please wait a moment and try again.");
+            return;
+        }
+
+        const dict = new cv.aruco.Dictionary(cv.aruco.DICT_4X4_50); // A common dictionary
+        const markerSizePx = 300; // Pixel size for the generated canvas marker (will be scaled down by CSS)
+        const markerCount = 12; // Number of markers to print on A4 (3 wide x 4 high)
+        const printArea = document.getElementById('marker-print-area');
+        printArea.innerHTML = '';
+        printArea.classList.remove('hidden');
+
+        for (let i = 0; i < markerCount; i++) {
+            const container = document.createElement('div');
+            container.className = 'marker-container';
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = markerSizePx;
+            canvas.height = markerSizePx;
+            container.appendChild(canvas);
+            
+            // Create the OpenCV Mat for the marker
+            let markerMat = new cv.Mat(markerSizePx, markerSizePx, cv.CV_8UC1);
+            
+            // The marker ID is its index (0 to 11)
+            // The last argument (1) is the border size, which is important for detection
+            cv.aruco.drawMarker(dict, i, markerSizePx, markerMat, 1);
+            
+            // Display the Mat on the canvas
+            cv.imshow(canvas, markerMat);
+            
+            // Clean up the Mat
+            markerMat.delete();
+            
+            printArea.appendChild(container);
+        }
+        
+        // Initiate printing
+        window.print();
+    },
     
     captureImage: function() {
         // Capture the current frozen AR view (video is paused after lock)
