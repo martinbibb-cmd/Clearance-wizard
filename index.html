@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Clearance Genie: Final</title>
     
-    <script async src="https://docs.opencv.org/4.5.2/opencv.js" onload="App.onCvLoaded()"></script>
+    <script async src="https://docs.opencv.org/4.5.2/opencv.js" onload="App.onCvLoaded()" onerror="App.onCvError()"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <style>
@@ -68,6 +68,7 @@
                 <option value="45">45mm (Your Marker)</option>
                 <option value="53">53mm (Credit Card)</option>
                 <option value="160">160mm (A4 Print)</option>
+                <option value="190">190mm (A4 Square)</option>
                 <option value="custom">Custom Size...</option>
             </select>
             
@@ -364,12 +365,35 @@ const App = {
     vision: new VisionSystem(),
     graphics: null,
     locked: false,
+    cvReady: false,
 
     onCvLoaded: function() { 
-        // When CV loads, populate the dropdown for the first time
-        // (Defaulting to 'boiler' which is first in the HTML list)
-        this.updateModels(); 
-        console.log("CV Ready");
+        // Wait for OpenCV to be fully initialized
+        let retryCount = 0;
+        const maxRetries = 50; // 5 seconds maximum wait time
+        const checkCvReady = () => {
+            if (typeof cv !== 'undefined' && cv.aruco) {
+                this.cvReady = true;
+                // When CV loads, populate the dropdown for the first time
+                // (Defaulting to 'boiler' which is first in the HTML list)
+                this.updateModels(); 
+                console.log("OpenCV Ready");
+            } else if (retryCount < maxRetries) {
+                // Check again after a short delay
+                retryCount++;
+                setTimeout(checkCvReady, 100);
+            } else {
+                // Timeout after max retries
+                console.error("OpenCV initialization timeout");
+                alert("OpenCV library failed to initialize. Please refresh the page and try again.");
+            }
+        };
+        checkCvReady();
+    },
+    
+    onCvError: function() {
+        console.error("Failed to load OpenCV.js");
+        alert("Failed to load OpenCV library. Please check your internet connection and refresh the page.");
     },
 
     // Handle marker size selection change
@@ -427,6 +451,11 @@ const App = {
     },
 
     startSession: async function() {
+        if (!this.cvReady) {
+            alert("OpenCV is still loading. Please wait a moment and try again.");
+            return;
+        }
+        
         const sizeSelect = document.getElementById('input-size').value;
         
         // Get marker size from either preset or custom input
@@ -536,7 +565,7 @@ const App = {
     resetObject: function() { this.graphics.stencil.position.set(150,0,0); },
     
     generateArUcoMarkers: function() {
-        if (typeof cv === 'undefined' || typeof cv.aruco === 'undefined') {
+        if (!this.cvReady) {
             alert("OpenCV is still loading. Please wait a moment and try again.");
             return;
         }
