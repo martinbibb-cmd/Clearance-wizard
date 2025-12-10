@@ -4,14 +4,19 @@ An AR-based clearance checking tool for boilers, radiators, and other appliances
 
 ## Setup Instructions
 
-### Step 1: Download OpenCV.js
+### Quick Start (Online Mode)
 
-The application requires the OpenCV.js library to function. You need to download it and place it in the project directory.
+The application now automatically loads OpenCV.js from a CDN, so you can run it immediately without any additional setup:
+
+### Optional: Download OpenCV.js for Offline Use
+
+For offline operation or better performance, you can optionally download OpenCV.js locally:
 
 1. Download the OpenCV.js file from: https://docs.opencv.org/4.5.2/opencv.js
 2. Save the file as `opencv.js` in the same directory as `index.html`
+3. The app will automatically detect and use the local copy instead of the CDN
 
-### Step 2: Run the Application
+### Running the Application
 
 Since this application uses camera access and loads local files, you need to serve it through a local web server:
 
@@ -59,10 +64,11 @@ Print the markers on white paper with a black printer for best results.
 
 If you see "Loading OpenCV..." or initialization errors:
 
-1. Ensure `opencv.js` is downloaded and placed in the project root directory
+1. **Check your internet connection** - The app will load OpenCV.js from CDN if no local copy is found
 2. Make sure you're running the app through a local web server (not opening the HTML file directly)
 3. Check your browser console (F12) for detailed error messages
 4. Ensure your browser supports WebRTC and camera access
+5. If using offline, ensure `opencv.js` is downloaded and placed in the project root directory
 
 ## Browser Compatibility
 
