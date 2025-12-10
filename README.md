@@ -36,8 +36,24 @@ http://localhost:8000
 - AR-based clearance visualization using ArUco markers
 - Support for multiple appliance types (boilers, radiators, cylinders, flues)
 - Custom marker and appliance sizing
-- ArUco marker generator for printing
 - Real-time camera tracking and overlay
+
+## ArUco Markers
+
+This application uses ArUco markers for AR tracking. You need to have pre-printed markers to use the app.
+
+**How to get markers:**
+
+1. **Download pre-generated markers**: You can download a PDF with ArUco markers from various online sources
+2. **Generate markers yourself**: Use Python with OpenCV to generate markers from the DICT_4X4_50 dictionary (IDs 0-49)
+3. **Online generators**: Search for "ArUco marker generator DICT_4X4_50" online
+
+**Recommended marker sizes:**
+- 43mm (credit card size) - Most portable
+- 53mm - Good balance
+- 160mm or larger - Better detection at distance
+
+Print the markers on white paper with a black printer for best results.
 
 ## Troubleshooting
 
