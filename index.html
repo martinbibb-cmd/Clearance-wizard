@@ -393,6 +393,7 @@ const App = {
         // Start a timeout. If initialization is not complete after 10 seconds, assume failure.
         this.loadTimeoutId = setTimeout(() => {
             if (!this.cvReady) {
+                this.cvReady = null; // Mark as failed to stop the polling loop
                 this.handleInitializationFailure("OpenCV failed to initialize after 10 seconds.");
             }
         }, 10000); 
@@ -420,7 +421,7 @@ const App = {
                 console.log("OpenCV Ready");
             } else {
                 // Keep trying every 100ms, only if timeout hasn't occurred
-                if (!this.cvReady) {
+                if (this.cvReady === false) {
                     setTimeout(checkCvReady, 100);
                 }
             }
@@ -446,7 +447,7 @@ const App = {
             generateBtn.disabled = true;
         }
 
-        alert(message + "\n\nPossible causes:\n- Slow internet connection\n- Script blocked by browser/firewall\n- CDN unavailable\n\nCheck browser console (F12) for details.");
+        alert(message + "\n\nPossible causes:\n- OpenCV.js file is missing (download from https://docs.opencv.org/4.5.2/opencv.js)\n- File path is incorrect\n- Browser security restrictions\n\nCheck browser console (F12) for details.");
     },
 
     // Core function to handle failed OpenCV script download (network error)
