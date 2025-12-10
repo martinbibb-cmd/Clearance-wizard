@@ -5,7 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Clearance Genie: Final</title>
     
-    <script async src="./opencv.js" onload="App.onCvLoaded()" onerror="App.onCvError()"></script>
+    <script>
+        // OpenCV.js loading with CDN fallback
+        (function() {
+            const script = document.createElement('script');
+            script.async = true;
+            script.src = './opencv.js';
+            script.onload = function() {
+                console.log('OpenCV loaded from local file');
+                if (typeof App !== 'undefined' && App.onCvLoaded) {
+                    App.onCvLoaded();
+                }
+            };
+            script.onerror = function() {
+                console.log('Local opencv.js not found, falling back to CDN...');
+                const cdnScript = document.createElement('script');
+                cdnScript.async = true;
+                cdnScript.src = 'https://docs.opencv.org/4.5.2/opencv.js';
+                cdnScript.onload = function() {
+                    console.log('OpenCV loaded from CDN');
+                    if (typeof App !== 'undefined' && App.onCvLoaded) {
+                        App.onCvLoaded();
+                    }
+                };
+                cdnScript.onerror = function() {
+                    console.error('Failed to load OpenCV from both local and CDN sources');
+                    if (typeof App !== 'undefined' && App.onCvError) {
+                        App.onCvError();
+                    }
+                };
+                document.head.appendChild(cdnScript);
+            };
+            document.head.appendChild(script);
+        })();
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <style>
@@ -106,24 +139,30 @@
 // ==========================================
 // 🔧 OPENCV LOADING STRATEGY
 // ==========================================
-// OpenCV.js is loaded asynchronously from CDN in the <head> section.
+// OpenCV.js is loaded asynchronously with automatic CDN fallback.
 //
 // Loading process:
-// 1. Browser downloads opencv.js (~8MB) from https://docs.opencv.org/4.5.2/opencv.js
-// 2. onload fires -> App.onCvLoaded() starts polling for cv.aruco
-// 3. Internal OpenCV initialization completes (cv.aruco becomes available)
-// 4. Buttons are enabled and app is ready
+// 1. First attempts to load from local ./opencv.js file (for offline operation)
+// 2. If local file not found, falls back to CDN: https://docs.opencv.org/4.5.2/opencv.js
+// 3. onload fires -> App.onCvLoaded() starts polling for cv.aruco
+// 4. Internal OpenCV initialization completes (cv.aruco becomes available)
+// 5. Buttons are enabled and app is ready
+//
+// Offline Operation (Optional):
+// - Download opencv.js from https://docs.opencv.org/4.5.2/opencv.js
+// - Place it in the same directory as index.html
+// - App will automatically use local copy instead of CDN
 //
 // Troubleshooting stuck on "Loading OpenCV...":
 // - Open browser console (F12) to see diagnostic messages
 // - Check Network tab to see if opencv.js downloaded successfully
 // - Look for error messages about blocked scripts or CORS issues
-// - If CDN is blocked, download opencv.js and host it locally (see onCvError logs)
+// - Ensure internet connection if opencv.js is not present locally
 //
 // Mobile considerations:
 // - Large file size (8MB) may take longer on mobile networks
 // - Some mobile browsers may restrict external script loading
-// - Consider hosting locally for production deployment
+// - For best performance, download opencv.js locally
 // ==========================================
 
 // ==========================================
