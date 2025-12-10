@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Clearance Genie: Final</title>
     
-    <script async src="https://docs.opencv.org/4.5.2/opencv.js" onload="App.onCvLoaded()" onerror="App.onCvError()"></script>
+    <script async src="./opencv.js" onload="App.onCvLoaded()" onerror="App.onCvError()"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <style>
@@ -377,52 +377,38 @@ class GraphicsEngine {
 }
 
 // ==========================================
-// 📱 CONTROLLER
+// 📱 CONTROLLER (Updated Initialization Logic)
 // ==========================================
 const App = {
     markerSize: 45,
     vision: new VisionSystem(),
     graphics: null,
     locked: false,
-    cvReady: false, // NEW: Flag to track OpenCV status
+    cvReady: false,
+    loadTimeoutId: null, // Timer to track long initialization
 
     onCvLoaded: function() {
-        console.log("OpenCV script loaded, waiting for initialization...");
-        const startTime = Date.now();
-        const timeout = 10000; // 10 seconds timeout
-
-        // Wait for OpenCV's internal initialization to complete (cv.aruco will exist)
-        const checkCvReady = () => {
-            const elapsed = Date.now() - startTime;
-
-            // Check for timeout
-            if (elapsed > timeout) {
-                console.error("OpenCV initialization timeout after " + (elapsed/1000).toFixed(1) + "s");
-                console.error("cv exists:", typeof cv !== 'undefined');
-                console.error("cv.aruco exists:", typeof cv !== 'undefined' && typeof cv.aruco !== 'undefined');
-
-                const startBtn = document.getElementById('start-camera-btn');
-                const generateBtn = document.getElementById('generate-markers-btn');
-                if (startBtn) {
-                    startBtn.textContent = 'OpenCV Timeout (See Console)';
-                    startBtn.style.background = '#e30613';
-                }
-                if (generateBtn) {
-                    generateBtn.textContent = 'OpenCV Timeout (See Console)';
-                    generateBtn.style.background = '#e30613';
-                }
-
-                alert("OpenCV failed to initialize after 10 seconds.\n\nPossible causes:\n• Slow internet connection\n• Script blocked by browser/firewall\n• CDN unavailable\n\nCheck browser console (F12) for details.");
-                return;
+        console.log("OpenCV script file loaded successfully. Starting internal initialization check.");
+        
+        // Start a timeout. If initialization is not complete after 10 seconds, assume failure.
+        this.loadTimeoutId = setTimeout(() => {
+            if (!this.cvReady) {
+                this.cvReady = null; // Mark as failed to stop the polling loop
+                this.handleInitializationFailure("OpenCV failed to initialize after 10 seconds.");
             }
+        }, 10000); 
 
-            if (typeof cv !== 'undefined' && cv.aruco) {
+        const checkCvReady = () => {
+            // Check 1: Global cv object exists, Check 2: ArUco functionality is exposed
+            if (typeof cv !== 'undefined' && cv.aruco) { 
+                clearTimeout(this.loadTimeoutId); // Clear the failure timer
                 this.cvReady = true;
                 this.updateModels();
 
                 // Enable buttons and update text
                 const startBtn = document.getElementById('start-camera-btn');
                 const generateBtn = document.getElementById('generate-markers-btn');
+                
                 if (startBtn) {
                     startBtn.disabled = false;
                     startBtn.textContent = 'Start Camera';
@@ -432,46 +418,41 @@ const App = {
                     generateBtn.textContent = 'Generate & Print (43mm)';
                 }
 
-                console.log("✓ OpenCV ready after " + (elapsed/1000).toFixed(1) + "s");
+                console.log("OpenCV Ready");
             } else {
-                // Log progress every 2 seconds
-                if (elapsed % 2000 < 100) {
-                    console.log("Waiting for OpenCV... (" + (elapsed/1000).toFixed(1) + "s) - cv:", typeof cv !== 'undefined', "cv.aruco:", typeof cv !== 'undefined' && typeof cv.aruco !== 'undefined');
+                // Keep trying every 100ms, only if timeout hasn't occurred
+                if (this.cvReady === false) {
+                    setTimeout(checkCvReady, 100);
                 }
-                // Check again after a short delay
-                setTimeout(checkCvReady, 100);
             }
         };
         checkCvReady();
     },
     
-    onCvError: function() {
-        console.error("❌ Failed to load OpenCV.js from CDN");
-        console.error("URL attempted: https://docs.opencv.org/4.5.2/opencv.js");
-        console.error("This usually means:");
-        console.error("  • No internet connection");
-        console.error("  • CDN is blocked by firewall/browser");
-        console.error("  • CDN server is down");
-
+    // Handles failures if the script was downloaded but initialization stalled
+    handleInitializationFailure: function(message) {
+        console.error(message);
+        
         // Update button states to show error
         const startBtn = document.getElementById('start-camera-btn');
         const generateBtn = document.getElementById('generate-markers-btn');
         if (startBtn) {
-            startBtn.textContent = 'Network Error (Check Console)';
+            startBtn.textContent = 'Initialization Failed';
             startBtn.style.background = '#e30613';
+            startBtn.disabled = true;
         }
         if (generateBtn) {
-            generateBtn.textContent = 'Network Error (Check Console)';
+            generateBtn.textContent = 'Initialization Failed';
             generateBtn.style.background = '#e30613';
+            generateBtn.disabled = true;
         }
 
-        alert("❌ Failed to load OpenCV library from CDN.\n\nPossible solutions:\n• Check your internet connection\n• Disable browser extensions (ad blockers)\n• Try a different network\n• Host opencv.js locally (see console)\n\nFor local hosting instructions, open browser console (F12).");
+        alert(message + "\n\nPossible causes:\n- OpenCV.js file is missing (download from https://docs.opencv.org/4.5.2/opencv.js)\n- File path is incorrect\n- Browser security restrictions\n\nCheck browser console (F12) for details.");
+    },
 
-        console.log("\n📘 TO HOST OPENCV.JS LOCALLY:");
-        console.log("1. Download: https://docs.opencv.org/4.5.2/opencv.js");
-        console.log("2. Place in project root or 'lib/' folder");
-        console.log("3. Change line 8 to: <script async src=\"opencv.js\" ...>");
-        console.log("4. Serve via local server (python -m http.server 8000)");
+    // Core function to handle failed OpenCV script download (network error)
+    onCvError: function() {
+        this.handleInitializationFailure("OpenCV script failed to download (Network Error).");
     },
 
     // Handle marker size selection change
@@ -529,7 +510,6 @@ const App = {
     },
 
     startSession: async function() {
-        // Guard clause: ensure CV is ready before starting the session
         if (!this.cvReady) {
             alert("OpenCV is still loading. Please wait a moment.");
             return;
@@ -645,8 +625,7 @@ const App = {
     resetObject: function() { this.graphics.stencil.position.set(150,0,0); },
     
     generateArUcoMarkers: function() {
-        // Guard clause: ensure CV is ready
-        if (!this.cvReady || typeof cv === 'undefined' || typeof cv.aruco === 'undefined') {
+        if (!this.cvReady) {
             alert("OpenCV is still loading. Please wait a moment.");
             return;
         }
@@ -680,7 +659,6 @@ const App = {
                 printArea.appendChild(container);
             }
             
-            // Initiate printing after a short delay
             setTimeout(() => window.print(), 100);
         } catch (error) {
             console.error('Error generating markers:', error);
