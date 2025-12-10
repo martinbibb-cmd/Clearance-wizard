@@ -20,17 +20,6 @@
         .card { background: rgba(255,255,255,0.95); padding: 20px; border-radius: 12px; margin: 20px auto; width: 90%; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
         .hidden { display: none !important; }
         
-        /* ArUco Marker Generator Styles */
-        #ar-generator-panel { margin-top: 10px; }
-        #marker-print-area { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; justify-items: center; padding: 10px; border: 1px dashed #ccc; background: #f9f9f9; }
-        .marker-container { width: 43mm; height: 43mm; display: flex; align-items: center; justify-content: center; }
-        .marker-container canvas { width: 100%; height: 100%; object-fit: contain; }
-        @media print {
-            body * { visibility: hidden; }
-            #marker-print-area, #marker-print-area * { visibility: visible; }
-            #marker-print-area { position: absolute; left: 0; top: 0; margin: 0; padding: 0; border: none; background: white; width: 210mm; }
-            .marker-container { width: 43mm; height: 43mm; margin: 5mm; }
-        }
         
         h1 { margin: 0 0 15px 0; font-size: 1.2rem; color: #333; text-align: center; }
         label { display: block; font-size: 0.8rem; color: #666; margin-bottom: 5px; font-weight: 700; text-transform: uppercase; }
@@ -101,12 +90,6 @@
             <button id="start-camera-btn" class="primary" onclick="App.startSession()" disabled>Loading OpenCV...</button>
         </div>
 
-        <div id="ar-generator-panel" class="card interactive">
-            <h1>📄 arUco Marker Generator</h1>
-            <p style="font-size:0.9rem; color:#666;">Print credit-card sized markers (43mm) to use for clearance checks.</p>
-            <button id="generate-markers-btn" class="primary" onclick="App.generateArUcoMarkers()" disabled>Loading OpenCV...</button>
-            <div id="marker-print-area" class="hidden"></div>
-        </div>
 
         <div id="controls-panel" class="control-bar interactive hidden">
             <button class="btn-round" onclick="App.resetObject()">↺</button>
@@ -405,17 +388,12 @@ const App = {
                 this.cvReady = true;
                 this.updateModels();
 
-                // Enable buttons and update text
+                // Enable button and update text
                 const startBtn = document.getElementById('start-camera-btn');
-                const generateBtn = document.getElementById('generate-markers-btn');
                 
                 if (startBtn) {
                     startBtn.disabled = false;
                     startBtn.textContent = 'Start Camera';
-                }
-                if (generateBtn) {
-                    generateBtn.disabled = false;
-                    generateBtn.textContent = 'Generate & Print (43mm)';
                 }
 
                 console.log("OpenCV Ready");
@@ -433,18 +411,12 @@ const App = {
     handleInitializationFailure: function(message) {
         console.error(message);
         
-        // Update button states to show error
+        // Update button state to show error
         const startBtn = document.getElementById('start-camera-btn');
-        const generateBtn = document.getElementById('generate-markers-btn');
         if (startBtn) {
             startBtn.textContent = 'Initialization Failed';
             startBtn.style.background = '#e30613';
             startBtn.disabled = true;
-        }
-        if (generateBtn) {
-            generateBtn.textContent = 'Initialization Failed';
-            generateBtn.style.background = '#e30613';
-            generateBtn.disabled = true;
         }
 
         alert(message + "\n\nPossible causes:\n- OpenCV.js file is missing (download from https://docs.opencv.org/4.5.2/opencv.js)\n- File path is incorrect\n- Browser security restrictions\n\nCheck browser console (F12) for details.");
@@ -559,7 +531,6 @@ const App = {
         }
 
         document.getElementById('menu-panel').classList.add('hidden');
-        document.getElementById('ar-generator-panel').classList.add('hidden');
         document.getElementById('controls-panel').classList.remove('hidden');
         document.getElementById('status-pill').classList.remove('hidden');
         document.getElementById('status-pill').textContent = "🔍 Point at Marker...";
@@ -623,49 +594,6 @@ const App = {
         document.getElementById('result-panel').classList.remove('hidden');
     },
     resetObject: function() { this.graphics.stencil.position.set(150,0,0); },
-    
-    generateArUcoMarkers: function() {
-        if (!this.cvReady) {
-            alert("OpenCV is still loading. Please wait a moment.");
-            return;
-        }
-
-        const dict = new cv.aruco.Dictionary(cv.aruco.DICT_4X4_50);
-        const markerSizePx = 300;
-        const markerCount = 12;
-        const printArea = document.getElementById('marker-print-area');
-        printArea.innerHTML = '';
-        printArea.classList.remove('hidden');
-
-        try {
-            for (let i = 0; i < markerCount; i++) {
-                const container = document.createElement('div');
-                container.className = 'marker-container';
-                
-                const canvas = document.createElement('canvas');
-                canvas.width = markerSizePx;
-                canvas.height = markerSizePx;
-                container.appendChild(canvas);
-                
-                let markerMat = new cv.Mat(markerSizePx, markerSizePx, cv.CV_8UC1);
-                
-                try {
-                    cv.aruco.drawMarker(dict, i, markerSizePx, markerMat, 1);
-                    cv.imshow(canvas, markerMat);
-                } finally {
-                    markerMat.delete();
-                }
-                
-                printArea.appendChild(container);
-            }
-            
-            setTimeout(() => window.print(), 100);
-        } catch (error) {
-            console.error('Error generating markers:', error);
-            alert('Failed to generate markers. Please try again.');
-            printArea.classList.add('hidden');
-        }
-    },
     
     // UPDATED FUNCTION: Correctly captures video with 'object-fit: cover' behavior
     captureImage: function() {
