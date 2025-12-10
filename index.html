@@ -548,33 +548,41 @@ const App = {
         printArea.innerHTML = '';
         printArea.classList.remove('hidden');
 
-        for (let i = 0; i < markerCount; i++) {
-            const container = document.createElement('div');
-            container.className = 'marker-container';
+        try {
+            for (let i = 0; i < markerCount; i++) {
+                const container = document.createElement('div');
+                container.className = 'marker-container';
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = markerSizePx;
+                canvas.height = markerSizePx;
+                container.appendChild(canvas);
+                
+                // Create the OpenCV Mat for the marker
+                let markerMat = new cv.Mat(markerSizePx, markerSizePx, cv.CV_8UC1);
+                
+                try {
+                    // The marker ID is its index (0 to 11)
+                    // The last argument (1) is the border size, which is important for detection
+                    cv.aruco.drawMarker(dict, i, markerSizePx, markerMat, 1);
+                    
+                    // Display the Mat on the canvas
+                    cv.imshow(canvas, markerMat);
+                } finally {
+                    // Clean up the Mat (ensure cleanup even if there's an error)
+                    markerMat.delete();
+                }
+                
+                printArea.appendChild(container);
+            }
             
-            const canvas = document.createElement('canvas');
-            canvas.width = markerSizePx;
-            canvas.height = markerSizePx;
-            container.appendChild(canvas);
-            
-            // Create the OpenCV Mat for the marker
-            let markerMat = new cv.Mat(markerSizePx, markerSizePx, cv.CV_8UC1);
-            
-            // The marker ID is its index (0 to 11)
-            // The last argument (1) is the border size, which is important for detection
-            cv.aruco.drawMarker(dict, i, markerSizePx, markerMat, 1);
-            
-            // Display the Mat on the canvas
-            cv.imshow(canvas, markerMat);
-            
-            // Clean up the Mat
-            markerMat.delete();
-            
-            printArea.appendChild(container);
+            // Initiate printing after a short delay to ensure markers are rendered
+            setTimeout(() => window.print(), 100);
+        } catch (error) {
+            console.error('Error generating markers:', error);
+            alert('Failed to generate markers. Please try again.');
+            printArea.classList.add('hidden');
         }
-        
-        // Initiate printing
-        window.print();
     },
     
     captureImage: function() {
