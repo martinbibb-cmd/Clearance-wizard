@@ -121,6 +121,29 @@
 
 <script>
 // ==========================================
+// 🔧 OPENCV LOADING STRATEGY
+// ==========================================
+// OpenCV.js is loaded asynchronously from CDN in the <head> section.
+//
+// Loading process:
+// 1. Browser downloads opencv.js (~8MB) from https://docs.opencv.org/4.5.2/opencv.js
+// 2. onload fires -> App.onCvLoaded() starts polling for cv.aruco
+// 3. Internal OpenCV initialization completes (cv.aruco becomes available)
+// 4. Buttons are enabled and app is ready
+//
+// Troubleshooting stuck on "Loading OpenCV...":
+// - Open browser console (F12) to see diagnostic messages
+// - Check Network tab to see if opencv.js downloaded successfully
+// - Look for error messages about blocked scripts or CORS issues
+// - If CDN is blocked, download opencv.js and host it locally (see onCvError logs)
+//
+// Mobile considerations:
+// - Large file size (8MB) may take longer on mobile networks
+// - Some mobile browsers may restrict external script loading
+// - Consider hosting locally for production deployment
+// ==========================================
+
+// ==========================================
 // 📚 DATA: APPLIANCE DATABASE
 // ==========================================
 const APPLIANCE_DB = [
@@ -364,8 +387,35 @@ const App = {
     cvReady: false, // NEW: Flag to track OpenCV status
 
     onCvLoaded: function() {
+        console.log("OpenCV script loaded, waiting for initialization...");
+        const startTime = Date.now();
+        const timeout = 10000; // 10 seconds timeout
+
         // Wait for OpenCV's internal initialization to complete (cv.aruco will exist)
         const checkCvReady = () => {
+            const elapsed = Date.now() - startTime;
+
+            // Check for timeout
+            if (elapsed > timeout) {
+                console.error("OpenCV initialization timeout after " + (elapsed/1000).toFixed(1) + "s");
+                console.error("cv exists:", typeof cv !== 'undefined');
+                console.error("cv.aruco exists:", typeof cv !== 'undefined' && typeof cv.aruco !== 'undefined');
+
+                const startBtn = document.getElementById('start-camera-btn');
+                const generateBtn = document.getElementById('generate-markers-btn');
+                if (startBtn) {
+                    startBtn.textContent = 'OpenCV Timeout (See Console)';
+                    startBtn.style.background = '#e30613';
+                }
+                if (generateBtn) {
+                    generateBtn.textContent = 'OpenCV Timeout (See Console)';
+                    generateBtn.style.background = '#e30613';
+                }
+
+                alert("OpenCV failed to initialize after 10 seconds.\n\nPossible causes:\n• Slow internet connection\n• Script blocked by browser/firewall\n• CDN unavailable\n\nCheck browser console (F12) for details.");
+                return;
+            }
+
             if (typeof cv !== 'undefined' && cv.aruco) {
                 this.cvReady = true;
                 this.updateModels();
@@ -382,8 +432,12 @@ const App = {
                     generateBtn.textContent = 'Generate & Print (43mm)';
                 }
 
-                console.log("OpenCV Ready");
+                console.log("✓ OpenCV ready after " + (elapsed/1000).toFixed(1) + "s");
             } else {
+                // Log progress every 2 seconds
+                if (elapsed % 2000 < 100) {
+                    console.log("Waiting for OpenCV... (" + (elapsed/1000).toFixed(1) + "s) - cv:", typeof cv !== 'undefined', "cv.aruco:", typeof cv !== 'undefined' && typeof cv.aruco !== 'undefined');
+                }
                 // Check again after a short delay
                 setTimeout(checkCvReady, 100);
             }
@@ -392,21 +446,32 @@ const App = {
     },
     
     onCvError: function() {
-        console.error("Failed to load OpenCV.js");
+        console.error("❌ Failed to load OpenCV.js from CDN");
+        console.error("URL attempted: https://docs.opencv.org/4.5.2/opencv.js");
+        console.error("This usually means:");
+        console.error("  • No internet connection");
+        console.error("  • CDN is blocked by firewall/browser");
+        console.error("  • CDN server is down");
 
         // Update button states to show error
         const startBtn = document.getElementById('start-camera-btn');
         const generateBtn = document.getElementById('generate-markers-btn');
         if (startBtn) {
-            startBtn.textContent = 'OpenCV Failed to Load';
+            startBtn.textContent = 'Network Error (Check Console)';
             startBtn.style.background = '#e30613';
         }
         if (generateBtn) {
-            generateBtn.textContent = 'OpenCV Failed to Load';
+            generateBtn.textContent = 'Network Error (Check Console)';
             generateBtn.style.background = '#e30613';
         }
 
-        alert("Failed to load OpenCV library. Please check your internet connection and refresh the page.");
+        alert("❌ Failed to load OpenCV library from CDN.\n\nPossible solutions:\n• Check your internet connection\n• Disable browser extensions (ad blockers)\n• Try a different network\n• Host opencv.js locally (see console)\n\nFor local hosting instructions, open browser console (F12).");
+
+        console.log("\n📘 TO HOST OPENCV.JS LOCALLY:");
+        console.log("1. Download: https://docs.opencv.org/4.5.2/opencv.js");
+        console.log("2. Place in project root or 'lib/' folder");
+        console.log("3. Change line 8 to: <script async src=\"opencv.js\" ...>");
+        console.log("4. Serve via local server (python -m http.server 8000)");
     },
 
     // Handle marker size selection change
