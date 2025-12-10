@@ -1,6 +1,3 @@
-# OpenCV library - users should download this themselves
-opencv.js
-
 # OS files
 .DS_Store
 Thumbs.db
