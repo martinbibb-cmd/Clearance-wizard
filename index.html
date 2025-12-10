@@ -142,27 +142,27 @@
 // OpenCV.js is loaded asynchronously with automatic CDN fallback.
 //
 // Loading process:
-// 1. First attempts to load from local ./opencv.js file (for offline operation)
+// 1. First attempts to load from local ./opencv.js file (included in repository)
 // 2. If local file not found, falls back to CDN: https://docs.opencv.org/4.5.2/opencv.js
 // 3. onload fires -> App.onCvLoaded() starts polling for cv.aruco
 // 4. Internal OpenCV initialization completes (cv.aruco becomes available)
 // 5. Buttons are enabled and app is ready
 //
-// Offline Operation (Optional):
-// - Download opencv.js from https://docs.opencv.org/4.5.2/opencv.js
-// - Place it in the same directory as index.html
-// - App will automatically use local copy instead of CDN
+// OpenCV.js is now bundled with the repository:
+// - opencv.js is included in the project directory
+// - No separate download required
+// - CDN fallback is available as a backup
 //
 // Troubleshooting stuck on "Loading OpenCV...":
 // - Open browser console (F12) to see diagnostic messages
-// - Check Network tab to see if opencv.js downloaded successfully
+// - Check Network tab to see if opencv.js loaded successfully
 // - Look for error messages about blocked scripts or CORS issues
-// - Ensure internet connection if opencv.js is not present locally
+// - Ensure opencv.js file is present in the project directory
 //
 // Mobile considerations:
 // - Large file size (8MB) may take longer on mobile networks
 // - Some mobile browsers may restrict external script loading
-// - For best performance, download opencv.js locally
+// - CDN fallback available if local file loading fails
 // ==========================================
 
 // ==========================================
@@ -458,7 +458,7 @@ const App = {
             startBtn.disabled = true;
         }
 
-        alert(message + "\n\nPossible causes:\n- OpenCV.js file is missing (download from https://docs.opencv.org/4.5.2/opencv.js)\n- File path is incorrect\n- Browser security restrictions\n\nCheck browser console (F12) for details.");
+        alert(message + "\n\nPossible causes:\n- OpenCV.js file could not be loaded\n- Browser security restrictions\n- Not running through a local web server\n- File path is incorrect\n\nCheck browser console (F12) for details.");
     },
 
     // Core function to handle failed OpenCV script download (network error)
