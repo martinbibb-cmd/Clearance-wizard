@@ -458,7 +458,7 @@ const App = {
             startBtn.disabled = true;
         }
 
-        alert(message + "\n\nPossible causes:\n- OpenCV.js file is missing from the repository\n- File path is incorrect\n- Browser security restrictions\n- Not running through a local web server\n\nCheck browser console (F12) for details.");
+        alert(message + "\n\nPossible causes:\n- OpenCV.js file could not be loaded\n- Browser security restrictions\n- Not running through a local web server\n- File path is incorrect\n\nCheck browser console (F12) for details.");
     },
 
     // Core function to handle failed OpenCV script download (network error)
