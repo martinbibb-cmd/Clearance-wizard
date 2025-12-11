@@ -3,9 +3,10 @@ const CACHE_NAME = 'clearance-genie-v1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './opencv.js',
   './manifest.json',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
+  // Note: opencv.js (7.69 MB) is excluded from cache due to size
+  // It relies on browser caching and CDN fallback instead
 ];
 
 // Install event - cache assets
@@ -61,7 +62,7 @@ self.addEventListener('fetch', (event) => {
         // Otherwise fetch from network
         return fetch(event.request).then((response) => {
           // Don't cache if not a valid response
-          if (!response || response.status !== 200 || response.type === 'error') {
+          if (!response || response.status !== 200) {
             return response;
           }
 
