@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./icon-192.png">
-    <title>Clearance Genie: Final</title>
+    <title>Clearance Genie: Pro (4-Marker)</title>
     
     <script>
         // OpenCV.js loading with CDN fallback
@@ -89,916 +89,182 @@
     <div id="touch-pad"></div>
 
     <div id="ui-layer">
-        <div id="status-pill" class="hidden">Initializing...</div>
+        <div id="status-pill">Waiting for OpenCV...</div>
 
-        <div id="welcome-panel" class="card interactive">
-            <h1>🔥 Clearance Genie</h1>
+        <div id="setup-card" class="card interactive">
+            <h1>Pro Mini-App</h1>
             <p style="text-align: center; color: #666; margin-bottom: 20px; font-size: 0.95rem;">
-                AR Clearance Checker for Heating Appliances
+                • Use 4 markers (IDs 1-4)<br>
+                • Marker size: 90mm<br>
+                • Scaled for 4000 Unit (724mm)
             </p>
-
-            <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                <h2 style="margin: 0 0 10px 0; font-size: 1rem; color: var(--wb-blue);">📋 How to Use</h2>
-                <ol style="margin: 0; padding-left: 20px; color: #444; font-size: 0.85rem; line-height: 1.6;">
-                    <li><strong>Print a marker:</strong> Print an ArUco marker or high-contrast square (recommended 190mm A4 square).</li>
-                    <li><strong>Select settings:</strong> Choose your marker size, appliance category, and model.</li>
-                    <li><strong>Start camera:</strong> Point your device at the marker.</li>
-                    <li><strong>View in 3D:</strong> The AR clearance volume will appear with parallax effects as you move.</li>
-                    <li><strong>Lock view:</strong> When satisfied, lock the view and capture the image.</li>
-                    <li><strong>Review:</strong> Check the clearance requirements are met in 3D space.</li>
-                </ol>
-            </div>
-
-            <div style="background: #fff5e6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #ff9800;">
-                <p style="margin: 0; font-size: 0.8rem; color: #666;">
-                    <strong>💡 Tip:</strong> Larger markers (190mm) provide better tracking stability, especially when viewing from a distance.
-                </p>
-            </div>
-
-            <div style="background: #f0f0f0; padding: 12px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #666;">
-                <p style="margin: 0; font-size: 0.75rem; color: #666;">
-                    <strong>📍 ArUco Markers:</strong> For best results, use ArUco markers (DICT_4X4_50). Download from
-                    <a href="https://chev.me/arucogen/" target="_blank" style="color: var(--wb-blue);">arucogen</a>
-                    or use any high-contrast square pattern.
-                </p>
-            </div>
-
-            <button class="primary" onclick="App.showMainMenu()">Get Started</button>
-        </div>
-
-        <div id="menu-panel" class="card interactive hidden">
-            <h1>🔥 Clearance Genie</h1>
-            
-            <label>1. Marker Size</label>
-            <select id="input-size" onchange="App.onSizeChange()">
-                <option value="45">45mm (Your Marker)</option>
-                <option value="53">53mm (Credit Card)</option>
-                <option value="148">148mm (A5 Square)</option>
-                <option value="167">167mm (A4 Print)</option>
-                <option value="190">190mm (A4 Square) - Recommended</option>
-                <option value="custom">Custom Size...</option>
-            </select>
-            
-            <div id="custom-size-container" class="hidden">
-                <label>Custom Marker Size (mm)</label>
-                <input type="number" id="custom-size-input" min="10" max="500" step="1" placeholder="Enter size in mm" aria-label="Custom marker size in millimeters">
-            </div>
-
-            <label>2. Category</label>
-            <select id="input-category" onchange="App.updateModels()">
-                <option value="boiler">🔥 Boilers</option>
-                <option value="flue">⭕ Flues</option>
-                <option value="radiator">♨️ Radiators</option>
-                <option value="cylinder">🛢️ Cylinders</option>
-            </select>
-
-            <label>3. Select Model</label>
-            <select id="input-type" onchange="App.onModelChange()">
-            </select>
-
-            <div id="custom-radiator-container" class="hidden">
-                <label>Radiator Width (mm)</label>
-                <input type="number" id="custom-radiator-width" min="100" max="3000" step="1" value="1000" placeholder="Enter width in mm" aria-label="Custom radiator width in millimeters">
-                
-                <label>Radiator Height (mm)</label>
-                <input type="number" id="custom-radiator-height" min="100" max="2000" step="1" value="600" placeholder="Enter height in mm" aria-label="Custom radiator height in millimeters">
-            </div>
-
-            <button id="start-camera-btn" class="primary" onclick="App.startSession()" disabled>Loading OpenCV...</button>
+            <button id="start-camera-btn" class="primary" onclick="App.start()" disabled>Loading OpenCV...</button>
         </div>
 
 
-        <div id="controls-panel" class="control-bar interactive hidden">
-            <button class="btn-round" onclick="App.resetObject()">↺</button>
-            <button class="btn-round" style="background: var(--wb-blue); color: white;" onclick="App.lockView()">🔒</button>
-        </div>
 
-        <div id="result-panel" class="control-bar interactive hidden">
-            <button class="btn-round" style="background: var(--wb-blue); color: white;" onclick="App.captureImage()" aria-label="Capture AR view" title="Capture current AR view as image">📷</button>
-            <button class="primary" style="max-width:200px;" onclick="App.startAgain()">Start Again</button>
-        </div>
     </div>
 
 <script>
 // ==========================================
-// 🔧 OPENCV LOADING STRATEGY
+// 👁️ PRO VISION SYSTEM (Multi-Marker)
 // ==========================================
-// OpenCV.js is loaded asynchronously with automatic CDN fallback.
-//
-// Loading process:
-// 1. First attempts to load from local ./opencv.js file (included in repository)
-// 2. If local file not found, falls back to CDN: https://docs.opencv.org/4.5.2/opencv.js
-// 3. onload fires -> App.onCvLoaded() starts polling for cv.Mat
-// 4. Internal OpenCV initialization completes (cv.Mat becomes available)
-// 5. Buttons are enabled and app is ready
-//
-// OpenCV.js is now bundled with the repository:
-// - opencv.js is included in the project directory
-// - No separate download required
-// - CDN fallback is available as a backup
-//
-// Troubleshooting stuck on "Loading OpenCV...":
-// - Open browser console (F12) to see diagnostic messages
-// - Check Network tab to see if opencv.js loaded successfully
-// - Look for error messages about blocked scripts or CORS issues
-// - Ensure opencv.js file is present in the project directory
-//
-// Mobile considerations:
-// - Large file size (8MB) may take longer on mobile networks
-// - Some mobile browsers may restrict external script loading
-// - CDN fallback available if local file loading fails
-// ==========================================
-
-// ==========================================
-// 📚 DATA: APPLIANCE DATABASE
-// ==========================================
-const APPLIANCE_DB = [
-    // --- FLUES ---
-    { id: "flue", category: "flue", label: "Standard Round Terminal", type: "flue", radius: 50, clearance: 300 },
-
-    // --- BOILERS ---
-    { id: "wb_4000", category: "boiler", label: "Worcester 4000 (Combi/System)", w: 400, h: 724, d: 310, clearance: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } },
-    { id: "wb_8000", category: "boiler", label: "Worcester 8000 (CDi/Si Compact)", w: 440, h: 780, d: 365, clearance: { top: 170, bottom: 200, left: 5, right: 5, front: 450 } },
-    { id: "wb_ri",   category: "boiler", label: "Worcester Ri Compact", w: 390, h: 600, d: 270, clearance: { top: 170, bottom: 200, left: 5, right: 5, front: 600 } },
-    { id: "wb_cdi",  category: "boiler", label: "Worcester CDi Compact", w: 390, h: 690, d: 310, clearance: { top: 170, bottom: 200, left: 5, right: 5, front: 450 } },
-    { id: "ideal_logic", category: "boiler", label: "Ideal Logic+ / Max", w: 395, h: 700, d: 310, clearance: { top: 50, bottom: 200, left: 5, right: 5, front: 450 } },
-    { id: "vaillant_pro", category: "boiler", label: "Vaillant ecoTEC Pro", w: 440, h: 720, d: 340, clearance: { top: 165, bottom: 150, left: 5, right: 5, front: 600 } },
-    { id: "vaillant_pure", category: "boiler", label: "Vaillant ecoTEC Pure", w: 390, h: 700, d: 320, clearance: { top: 165, bottom: 150, left: 5, right: 5, front: 600 } },
-    { id: "glowworm", category: "boiler", label: "Glow-worm Energy", w: 390, h: 700, d: 280, clearance: { top: 150, bottom: 150, left: 5, right: 5, front: 600 } },
-    { id: "viessmann_050", category: "boiler", label: "Viessmann 050-W", w: 400, h: 700, d: 300, clearance: { top: 200, bottom: 200, left: 5, right: 5, front: 450 } },
-
-    // --- RADIATORS ---
-    { id: "rad_600_1000", category: "radiator", label: "Type 22 (600x1000)", w: 1000, h: 600, d: 100, clearance: { top: 0, bottom: 150, left: 150, right: 150, front: 150 } },
-    { id: "rad_600_600",  category: "radiator", label: "Type 22 (600x600)", w: 600, h: 600, d: 100, clearance: { top: 0, bottom: 150, left: 150, right: 150, front: 150 } },
-    { id: "rad_custom",   category: "radiator", label: "Custom Size...", w: 1000, h: 600, d: 100, clearance: { top: 0, bottom: 150, left: 150, right: 150, front: 150 } },
-    
-    // --- CYLINDERS ---
-    { id: "cyl_std",  category: "cylinder", label: "Standard (150L)", w: 550, h: 1045, d: 550, clearance: { top: 300, bottom: 300, left: 300, right: 300, front: 300 } },
-    { id: "cyl_slim", category: "cylinder", label: "Slimline (150L)", w: 475, h: 1300, d: 475, clearance: { top: 300, bottom: 300, left: 300, right: 300, front: 300 } }
-];
-
-// ==========================================
-// 👁️ VISION SYSTEM (ArUco Marker Detection)
-// ==========================================
-class VisionSystem {
+class ProVision {
     constructor() {
-        this.ready = false;
-        this.scale = 0.5;
-        this.useAruco = true; // Use ArUco detection for better pose estimation
+        this.markerSize = 90; // Fixed 90mm per Pro requirement
+        this.dictionary = null;
+        this.params = null;
     }
 
-    init(video) {
-        // Initialize Mats with scaled dimensions to match canvas size
-        const w = Math.floor(video.videoWidth * this.scale);
-        const h = Math.floor(video.videoHeight * this.scale);
-
-        this.src = new cv.Mat(h, w, cv.CV_8UC4);
-        this.gray = new cv.Mat();
-
-        // ArUco detection setup
-        if (this.useAruco) {
-            try {
-                // Use DICT_4X4_50 dictionary (small, fast, good for mobile)
-                this.dictionary = new cv.aruco_Dictionary(cv.DICT_4X4_50);
-                this.detectorParams = new cv.aruco_DetectorParameters();
-                console.log("ArUco detector initialized");
-            } catch(e) {
-                console.warn("ArUco not available, falling back to square detection:", e);
-                this.useAruco = false;
-            }
-        }
-
-        // Fallback to square detection
-        if (!this.useAruco) {
-            this.blurred = new cv.Mat();
-            this.binary = new cv.Mat();
-            this.contours = new cv.MatVector();
-            this.hierarchy = new cv.Mat();
-        }
-
-        this.ready = true;
+    init() {
+        this.dictionary = new cv.aruco_Dictionary(cv.DICT_4X4_50);
+        this.params = new cv.aruco_DetectorParameters();
     }
 
-    findMarker(video, markerSize) {
-        if(!this.ready) return null;
-        const w = Math.floor(video.videoWidth * this.scale);
-        const h = Math.floor(video.videoHeight * this.scale);
+    detect(video, srcMat, grayMat) {
+        let corners = new cv.MatVector();
+        let ids = new cv.Mat();
+        cv.detectMarkers(grayMat, this.dictionary, corners, ids, this.params);
 
-        if(!this._ctx) {
-            const c = document.createElement('canvas');
-            c.width = w; c.height = h;
-            this._ctx = c.getContext('2d', {willReadFrequently:true});
+        if (ids.rows > 0) {
+            // We use the first detected marker as our primary "Anchor" (usually ID 1)
+            // But we use its specific 90mm size to set the scene scale
+            const idx = 0;
+            const markerId = ids.data32S[0]; 
+            const markerCorners = corners.get(idx);
+            
+            // Basic Pinhole Math to get Z-depth based on 90mm
+            const vh = video.videoHeight;
+            const focal = (vh / 2) / Math.tan((60 * Math.PI / 180) / 2);
+            
+            // Get pixel width of the 90mm marker
+            const p1 = {x: markerCorners.data32F[0], y: markerCorners.data32F[1]};
+            const p2 = {x: markerCorners.data32F[2], y: markerCorners.data32F[3]};
+            const pxWidth = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            
+            const z = -(this.markerSize * focal) / pxWidth;
+            const cx = (p1.x + p2.x) / 2;
+            const cy = (p1.y + p2.y) / 2;
+            
+            const x = (cx - video.videoWidth/2) * (Math.abs(z)/focal);
+            const y = (cy - vh/2) * (Math.abs(z)/focal) * -1;
+
+            corners.delete();
+            ids.delete();
+            return { x, y, z, id: markerId };
         }
-
-        // Ensure Mat dimensions match canvas dimensions
-        if(this.src.cols !== w || this.src.rows !== h) {
-            this.src.delete();
-            this.src = new cv.Mat(h, w, cv.CV_8UC4);
-        }
-
-        this._ctx.drawImage(video, 0, 0, w, h);
-        this.src.data.set(this._ctx.getImageData(0,0,w,h).data);
-        cv.cvtColor(this.src, this.gray, cv.COLOR_RGBA2GRAY);
-
-        if (this.useAruco) {
-            return this._findArucoMarker(video, markerSize);
-        } else {
-            return this._findSquareMarker(video, markerSize, w, h);
-        }
-    }
-
-    _findArucoMarker(video, markerSize) {
-        try {
-            const markerCorners = new cv.MatVector();
-            const markerIds = new cv.Mat();
-            const rejectedCandidates = new cv.MatVector();
-
-            // Detect ArUco markers
-            cv.detectMarkers(this.gray, this.dictionary, markerCorners, markerIds, this.detectorParams, rejectedCandidates);
-
-            if (markerIds.rows > 0) {
-                // Use the first detected marker
-                const corners = markerCorners.get(0);
-                const pose = this._getPoseFromCorners(corners, video.videoWidth, video.videoHeight, this.scale, markerSize);
-
-                // Store rotation for parallax effects
-                pose.rotation = this._getRotationFromCorners(corners);
-
-                markerCorners.delete();
-                markerIds.delete();
-                rejectedCandidates.delete();
-
-                return pose;
-            }
-
-            markerCorners.delete();
-            markerIds.delete();
-            rejectedCandidates.delete();
-        } catch(e) {
-            console.error("ArUco detection error:", e);
-        }
+        
+        corners.delete();
+        ids.delete();
         return null;
-    }
-
-    _findSquareMarker(video, markerSize, w, h) {
-        // Apply Gaussian blur to reduce noise
-        const ksize = new cv.Size(5, 5);
-        cv.GaussianBlur(this.gray, this.blurred, ksize, 0);
-
-        // Use Otsu's thresholding for better binary conversion
-        cv.threshold(this.blurred, this.binary, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-
-        // Find contours
-        cv.findContours(this.binary, this.contours, this.hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-
-        let bestPose = null;
-        let maxArea = 0;
-        const minArea = 800;
-        const maxArea_limit = (w * h) * 0.7;
-
-        for (let i = 0; i < this.contours.size(); ++i) {
-            let cnt = this.contours.get(i);
-            let area = cv.contourArea(cnt);
-
-            if (area > minArea && area < maxArea_limit) {
-                let peri = cv.arcLength(cnt, true);
-                let approx = new cv.Mat();
-                cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-
-                if (approx.rows === 4 && cv.isContourConvex(approx)) {
-                    // Check if it's roughly square by comparing aspect ratio
-                    const rect = cv.boundingRect(approx);
-                    const aspectRatio = Math.max(rect.width, rect.height) / Math.min(rect.width, rect.height);
-
-                    // Accept markers with aspect ratio <= 1.4 (roughly square)
-                    if (aspectRatio <= 1.4 && area > maxArea) {
-                        maxArea = area;
-                        bestPose = this._getPoseFromApprox(approx, video.videoWidth, video.videoHeight, this.scale, markerSize);
-                    }
-                }
-                approx.delete();
-            }
-        }
-        return bestPose;
-    }
-
-    _getRotationFromCorners(corners) {
-        // Extract corner points (ArUco markers have 4 corners)
-        const c = [];
-        for(let i = 0; i < 4; i++) {
-            c.push({
-                x: corners.data32F[i * 2],
-                y: corners.data32F[i * 2 + 1]
-            });
-        }
-
-        // Calculate rotation angles based on marker orientation
-        // Vector from corner 0 to corner 1 (top edge)
-        const dx = c[1].x - c[0].x;
-        const dy = c[1].y - c[0].y;
-        const rotZ = Math.atan2(dy, dx);
-
-        // Estimate tilt based on perspective distortion
-        const topWidth = Math.hypot(c[1].x - c[0].x, c[1].y - c[0].y);
-        const bottomWidth = Math.hypot(c[2].x - c[3].x, c[2].y - c[3].y);
-        const rotX = Math.atan((topWidth - bottomWidth) / ((topWidth + bottomWidth) / 2)) * 0.5;
-
-        const leftHeight = Math.hypot(c[3].x - c[0].x, c[3].y - c[0].y);
-        const rightHeight = Math.hypot(c[2].x - c[1].x, c[2].y - c[1].y);
-        const rotY = Math.atan((leftHeight - rightHeight) / ((leftHeight + rightHeight) / 2)) * 0.5;
-
-        return { x: rotX, y: rotY, z: rotZ };
-    }
-
-    _getPoseFromCorners(corners, vw, vh, scale, markerSize) {
-        // Extract corner points
-        const c = [];
-        for(let i = 0; i < 4; i++) {
-            c.push({
-                x: corners.data32F[i * 2] / scale,
-                y: corners.data32F[i * 2 + 1] / scale
-            });
-        }
-
-        // Calculate marker width in pixels (average of all four edges)
-        const wPx = (
-            Math.hypot(c[0].x-c[1].x, c[0].y-c[1].y) +
-            Math.hypot(c[1].x-c[2].x, c[1].y-c[2].y) +
-            Math.hypot(c[2].x-c[3].x, c[2].y-c[3].y) +
-            Math.hypot(c[3].x-c[0].x, c[3].y-c[0].y)
-        ) / 4;
-
-        // Calculate pose using pinhole camera model
-        const vFovRad = 60 * Math.PI / 180;
-        const focal = (vh / 2) / Math.tan(vFovRad / 2);
-        const z = -(markerSize * focal) / wPx;
-
-        // Calculate center of marker (average of all corners)
-        const cx = (c[0].x + c[1].x + c[2].x + c[3].x) / 4;
-        const cy = (c[0].y + c[1].y + c[2].y + c[3].y) / 4;
-
-        // Convert to 3D position
-        const x = (cx - vw/2) * (Math.abs(z)/focal);
-        const y = (cy - vh/2) * (Math.abs(z)/focal) * -1;
-
-        return { x, y, z };
-    }
-
-    _getPoseFromApprox(approx, vw, vh, scale, markerSize) {
-        const c = [];
-        for(let j=0; j<8; j+=2) c.push({x: approx.data32S[j]/scale, y: approx.data32S[j+1]/scale});
-
-        // Calculate marker width in pixels (average of all four edges)
-        const wPx = (
-            Math.hypot(c[0].x-c[1].x, c[0].y-c[1].y) +
-            Math.hypot(c[1].x-c[2].x, c[1].y-c[2].y) +
-            Math.hypot(c[2].x-c[3].x, c[2].y-c[3].y) +
-            Math.hypot(c[3].x-c[0].x, c[3].y-c[0].y)
-        ) / 4;
-
-        // Calculate pose using pinhole camera model
-        const vFovRad = 60 * Math.PI / 180;
-        const focal = (vh / 2) / Math.tan(vFovRad / 2);
-        const z = -(markerSize * focal) / wPx;
-
-        // Calculate center of marker (average of all corners)
-        const cx = (c[0].x + c[1].x + c[2].x + c[3].x) / 4;
-        const cy = (c[0].y + c[1].y + c[2].y + c[3].y) / 4;
-
-        // Convert to 3D position
-        const x = (cx - vw/2) * (Math.abs(z)/focal);
-        const y = (cy - vh/2) * (Math.abs(z)/focal) * -1;
-
-        return { x, y, z };
     }
 }
 
 // ==========================================
-// 🎨 GRAPHICS (3D Rendering with Translucent Clearances)
+// 🎨 PRO GRAPHICS (Scaled for 724mm)
 // ==========================================
-// Note: preserveDrawingBuffer is required to capture WebGL canvas content
-// in screenshots. Without it, the canvas is cleared after rendering and
-// captureImage() would only save the video feed without AR graphics.
-class GraphicsEngine {
+class ProGraphics {
     constructor(canvas) {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
-        this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
+        this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.root = new THREE.Group();
         this.scene.add(this.root);
-        this.stencil = null;
-        this.parallaxEnabled = true;
-    }
-
-    setStencil(data) {
-        if(this.stencil) this.root.remove(this.stencil);
-        this.stencil = new THREE.Group();
         
-        if(data.type === 'flue') {
-            this._createRadial(data);
-        } else {
-            this._createBox(data);
-        }
-        
-        this.stencil.position.x = 150; 
-        this.root.add(this.stencil);
+        // CREATE THE 724mm BOILER BOX (Worcester 4000)
+        // Blue box = 400 wide, 724 tall, 310 deep
+        const geo = new THREE.BoxGeometry(400, 724, 310);
+        const mat = new THREE.MeshBasicMaterial({ color: 0x005eb8, wireframe: true });
+        const box = new THREE.Mesh(geo, mat);
+        box.position.set(0, -362, -155); // Anchor to Top-Center of marker
+        this.root.add(box);
     }
 
-    _createBox(data) {
-        // Clearance calculations
-        let clearanceTop, clearanceBottom, clearanceLeft, clearanceRight, clearanceFront;
-
-        if (typeof data.clearance === 'object' && data.clearance !== null && !Array.isArray(data.clearance)) {
-            clearanceTop = data.clearance.top || 0;
-            clearanceBottom = data.clearance.bottom || 0;
-            clearanceLeft = data.clearance.left || 0;
-            clearanceRight = data.clearance.right || 0;
-            clearanceFront = data.clearance.front || 0;
-        } else {
-            clearanceTop = clearanceBottom = clearanceLeft = clearanceRight = clearanceFront = data.clearance || 0;
-        }
-
-        const zW = data.w + clearanceLeft + clearanceRight;
-        const zH = data.h + clearanceTop + clearanceBottom;
-        const zD = data.d + clearanceFront;
-
-        const offsetX = (clearanceRight - clearanceLeft) / 2;
-        const offsetY = (clearanceTop - clearanceBottom) / 2;
-        const offsetZ = clearanceFront / 2;
-
-        // 1. Create 3D Appliance Box (Blue - solid representation)
-        const applianceGeo = new THREE.BoxGeometry(data.w, data.h, data.d);
-        const applianceMat = new THREE.MeshBasicMaterial({
-            color: 0x005eb8,
-            opacity: 0.3,
-            transparent: true,
-            side: THREE.DoubleSide
-        });
-        const applianceMesh = new THREE.Mesh(applianceGeo, applianceMat);
-        applianceMesh.position.set(0, 0, -data.d/2);
-        this.stencil.add(applianceMesh);
-
-        // 2. Appliance Edges (Blue outline)
-        const applianceEdges = new THREE.EdgesGeometry(applianceGeo);
-        const applianceLines = new THREE.LineSegments(applianceEdges, new THREE.LineBasicMaterial({
-            color: 0x005eb8,
-            linewidth: 2
-        }));
-        applianceLines.position.set(0, 0, -data.d/2);
-        this.stencil.add(applianceLines);
-
-        // 3. Create 3D Clearance Zone Box (Red - translucent volume)
-        const clearanceGeo = new THREE.BoxGeometry(zW, zH, zD);
-        const clearanceMat = new THREE.MeshBasicMaterial({
-            color: 0xe30613,
-            opacity: 0.15,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthWrite: false  // Allows proper transparency layering
-        });
-        const clearanceMesh = new THREE.Mesh(clearanceGeo, clearanceMat);
-        clearanceMesh.position.set(offsetX, offsetY, -zD/2);
-        this.stencil.add(clearanceMesh);
-
-        // 4. Clearance Zone Edges (Red outline)
-        const clearanceEdges = new THREE.EdgesGeometry(clearanceGeo);
-        const clearanceLines = new THREE.LineSegments(clearanceEdges, new THREE.LineBasicMaterial({
-            color: 0xe30613,
-            linewidth: 2
-        }));
-        clearanceLines.position.set(offsetX, offsetY, -zD/2);
-        this.stencil.add(clearanceLines);
-
-        // 5. Add front-face hatching for better visibility
-        const hatchPoints = [];
-        const startX = -zW/2 + offsetX, endX = zW/2 + offsetX;
-        const startY = -zH/2 + offsetY, endY = zH/2 + offsetY;
-
-        // Diagonal hatching lines (45 degrees) on the front face
-        for(let x = startX - zH; x < endX + zH; x += 40) {
-            hatchPoints.push(new THREE.Vector3(x, startY, 0));
-            hatchPoints.push(new THREE.Vector3(x + zH, endY, 0));
-        }
-
-        const hatchMat = new THREE.LineBasicMaterial({ color: 0xe30613, opacity: 0.4, transparent: true });
-        this.stencil.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(hatchPoints), hatchMat));
-
-        // 6. Add dimension labels (optional - for better UX)
-        if (clearanceFront > 0) {
-            this._addDepthIndicator(data.w, data.h, -data.d, clearanceFront);
-        }
+    render() { 
+        this.renderer.render(this.scene, this.camera); 
     }
-
-    _addDepthIndicator(w, h, startZ, depth) {
-        // Visual indicator showing the clearance depth (front)
-        const points = [];
-        points.push(new THREE.Vector3(w/2 + 50, h/2 + 50, startZ));
-        points.push(new THREE.Vector3(w/2 + 50, h/2 + 50, startZ - depth));
-
-        const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-        const lineMat = new THREE.LineBasicMaterial({ color: 0xe30613, linewidth: 2 });
-        const line = new THREE.Line(lineGeo, lineMat);
-        this.stencil.add(line);
-
-        // Add arrow heads
-        const arrowSize = 30;
-        const arrowPoints = [
-            new THREE.Vector3(w/2 + 50, h/2 + 50, startZ),
-            new THREE.Vector3(w/2 + 30, h/2 + 50, startZ - 20),
-            new THREE.Vector3(w/2 + 70, h/2 + 50, startZ - 20),
-            new THREE.Vector3(w/2 + 50, h/2 + 50, startZ)
-        ];
-        const arrowGeo = new THREE.BufferGeometry().setFromPoints(arrowPoints);
-        const arrow = new THREE.Line(arrowGeo, lineMat);
-        this.stencil.add(arrow);
-    }
-
-    _createRadial(data) {
-        const ring = new THREE.Mesh(new THREE.RingGeometry(0, data.radius, 32), new THREE.MeshBasicMaterial({color:0x333333}));
-        const zone = new THREE.Mesh(new THREE.RingGeometry(data.radius, data.clearance, 32), new THREE.MeshBasicMaterial({color:0xe30613, opacity:0.3, transparent:true, side:THREE.DoubleSide}));
-        this.stencil.add(ring, zone);
-    }
-
-    render() { this.renderer.render(this.scene, this.camera); }
 }
 
 // ==========================================
-// 📱 CONTROLLER (Updated Initialization Logic)
+// 📱 PRO APP
 // ==========================================
 const App = {
-    markerSize: 190,
-    vision: new VisionSystem(),
+    vision: new ProVision(),
     graphics: null,
-    locked: false,
-    cvReady: false,
-    loadTimeoutId: null, // Timer to track long initialization
-
+    
     onCvLoaded: function() {
         console.log("OpenCV script file loaded successfully. Starting internal initialization check.");
         
-        // Start a timeout. If initialization is not complete after 10 seconds, assume failure.
-        this.loadTimeoutId = setTimeout(() => {
-            if (!this.cvReady) {
-                this.cvReady = null; // Mark as failed to stop the polling loop
-                this.handleInitializationFailure("OpenCV failed to initialize after 10 seconds.");
-            }
-        }, 10000); 
-
         const checkCvReady = () => {
-            // Check 1: Global cv object exists, Check 2: Basic OpenCV functionality is available
-            if (typeof cv !== 'undefined' && cv.Mat) {
-                clearTimeout(this.loadTimeoutId); // Clear the failure timer
-                this.cvReady = true;
-                this.updateModels();
-
+            // Check 1: Global cv object exists, Check 2: ArUco is available
+            if (typeof cv !== 'undefined' && cv.Mat && cv.aruco_Dictionary) {
                 // Enable button and update text
                 const startBtn = document.getElementById('start-camera-btn');
-                
                 if (startBtn) {
                     startBtn.disabled = false;
-                    startBtn.textContent = 'Start Camera';
+                    startBtn.textContent = 'Start Calibration';
                 }
-
-                console.log("OpenCV Ready");
+                document.getElementById('status-pill').textContent = "OpenCV Ready";
+                console.log("✓ OpenCV Ready");
             } else {
-                // Keep trying every 100ms, only if timeout hasn't occurred
-                if (this.cvReady === false) {
-                    setTimeout(checkCvReady, 100);
-                }
+                setTimeout(checkCvReady, 100);
             }
         };
         checkCvReady();
     },
     
-    // Handles failures if the script was downloaded but initialization stalled
-    handleInitializationFailure: function(message) {
-        console.error(message);
-        
-        // Update button state to show error
+    // Core function to handle failed OpenCV script download (network error)
+    onCvError: function() {
+        document.getElementById('status-pill').textContent = "Failed to load OpenCV";
         const startBtn = document.getElementById('start-camera-btn');
         if (startBtn) {
             startBtn.textContent = 'Initialization Failed';
             startBtn.style.background = '#e30613';
             startBtn.disabled = true;
         }
-
-        alert(message + "\n\nPossible causes:\n- OpenCV.js file could not be loaded\n- Browser security restrictions\n- Not running through a local web server\n- File path is incorrect\n\nCheck browser console (F12) for details.");
+        alert("OpenCV script failed to download.\n\nCheck browser console (F12) for details.");
     },
 
-    // Core function to handle failed OpenCV script download (network error)
-    onCvError: function() {
-        this.handleInitializationFailure("OpenCV script failed to download (Network Error).");
-    },
-
-    // Show main menu from welcome screen
-    showMainMenu: function() {
-        document.getElementById('welcome-panel').classList.add('hidden');
-        document.getElementById('menu-panel').classList.remove('hidden');
-    },
-
-    // Handle marker size selection change
-    onSizeChange: function() {
-        const sizeSelect = document.getElementById('input-size');
-        const customContainer = document.getElementById('custom-size-container');
-        
-        if (sizeSelect.value === 'custom') {
-            customContainer.classList.remove('hidden');
-        } else {
-            customContainer.classList.add('hidden');
-        }
-    },
-
-    // Handle model selection change
-    onModelChange: function() {
-        const modelSelect = document.getElementById('input-type');
-        const customRadiatorContainer = document.getElementById('custom-radiator-container');
-        const index = parseInt(modelSelect.value, 10);
-        
-        // Check if the selected model is the custom radiator
-        if (!isNaN(index) && index >= 0 && index < APPLIANCE_DB.length) {
-            const selectedItem = APPLIANCE_DB[index];
-            if (selectedItem.id === 'rad_custom') {
-                customRadiatorContainer.classList.remove('hidden');
-            } else {
-                customRadiatorContainer.classList.add('hidden');
-            }
-        } else {
-            customRadiatorContainer.classList.add('hidden');
-        }
-    },
-
-    // Filters the list based on category
-    updateModels: function() {
-        const category = document.getElementById('input-category').value;
-        const modelSelect = document.getElementById('input-type');
-        
-        // Clear existing options
-        modelSelect.innerHTML = "";
-
-        // Filter DB and create new options
-        APPLIANCE_DB.forEach((item, index) => {
-            if (item.category === category) {
-                const opt = document.createElement('option');
-                // We store the array INDEX as the value so we can look it up easily later
-                opt.value = index; 
-                opt.text = item.label;
-                modelSelect.appendChild(opt);
-            }
-        });
-        
-        // Trigger model change to update custom input visibility
-        this.onModelChange();
-    },
-
-    startSession: async function() {
-        if (!this.cvReady) {
-            alert("OpenCV is still loading. Please wait a moment.");
-            return;
-        }
-        
-        const sizeSelect = document.getElementById('input-size').value;
-        
-        // Get marker size from either preset or custom input
-        if (sizeSelect === 'custom') {
-            const customSize = parseInt(document.getElementById('custom-size-input').value, 10);
-            if (isNaN(customSize) || customSize < 10 || customSize > 500) {
-                alert('Please enter a valid marker size between 10 and 500 millimeters (whole numbers only)');
-                return;
-            }
-            this.markerSize = customSize;
-        } else {
-            this.markerSize = parseInt(sizeSelect, 10);
-        }
-        
-        const index = parseInt(document.getElementById('input-type').value, 10);
-        
-        // Validate index
-        if(isNaN(index) || index < 0 || index >= APPLIANCE_DB.length) {
-            console.error('Invalid appliance selection');
-            return;
-        }
-        
-        let data = APPLIANCE_DB[index];
-        
-        // Handle custom radiator dimensions
-        if (data.id === 'rad_custom') {
-            const customWidth = parseInt(document.getElementById('custom-radiator-width').value, 10);
-            const customHeight = parseInt(document.getElementById('custom-radiator-height').value, 10);
-            
-            if (isNaN(customWidth) || customWidth < 100 || customWidth > 3000) {
-                alert('Please enter a valid radiator width between 100 and 3000 mm');
-                return;
-            }
-            
-            if (isNaN(customHeight) || customHeight < 100 || customHeight > 2000) {
-                alert('Please enter a valid radiator height between 100 and 2000 mm');
-                return;
-            }
-            
-            // Create a copy of the data with custom dimensions
-            data = { ...data, w: customWidth, h: customHeight };
-        }
-
-        document.getElementById('menu-panel').classList.add('hidden');
-        document.getElementById('controls-panel').classList.remove('hidden');
-        document.getElementById('status-pill').classList.remove('hidden');
-        document.getElementById('status-pill').textContent = "🔍 Point at Marker...";
-
+    start: async function() {
+        document.getElementById('setup-card').style.display = 'none';
         const video = document.getElementById('camera-layer');
-        video.srcObject = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: 'environment', width: { ideal: 1280 } } 
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
 
-        this.graphics = new GraphicsEngine(document.getElementById('ar-layer'));
-        this.graphics.setStencil(data);
-        this.setupTouch();
-        this.vision.init(video);
-        this.loop();
+        // Setup Three.js
+        const canvas = document.getElementById('ar-layer');
+        this.graphics = new ProGraphics(canvas);
+
+        this.vision.init();
+        this.run();
     },
 
-    loop: function() {
-        requestAnimationFrame(this.loop.bind(this));
+    run: function() {
+        requestAnimationFrame(() => this.run());
         const video = document.getElementById('camera-layer');
-        if(video.readyState !== 4) return;
+        if (video.readyState !== 4) return;
+
+        // Process frame
+        const canvas = document.createElement('canvas');
+        canvas.width = 640; canvas.height = 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, 640, 480);
+        
+        let src = cv.imread(canvas);
+        let gray = new cv.Mat();
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+        const pose = this.vision.detect(video, src, gray);
+        if (pose) {
+            document.getElementById('status-pill').textContent = "ID " + pose.id + " Detected - Scaling to 90mm";
+            this.graphics.root.position.set(pose.x, pose.y, pose.z);
+        } else {
+            document.getElementById('status-pill').textContent = "Looking for Markers 1-4...";
+        }
 
         this.graphics.render();
-
-        if(!this.locked) {
-            const pose = this.vision.findMarker(video, this.markerSize);
-            if(pose) {
-                // Update position with smooth interpolation
-                const t = this.graphics.root.position;
-                t.x += (pose.x - t.x) * 0.2;
-                t.y += (pose.y - t.y) * 0.2;
-                t.z += (pose.z - t.z) * 0.2;
-
-                // Apply parallax rotation if available (from ArUco detection)
-                if(pose.rotation && this.graphics.parallaxEnabled) {
-                    const r = this.graphics.root.rotation;
-                    r.x += (pose.rotation.x - r.x) * 0.15;
-                    r.y += (pose.rotation.y - r.y) * 0.15;
-                    r.z += (pose.rotation.z - r.z) * 0.15;
-                }
-
-                document.getElementById('status-pill').textContent = "✓ Tracking";
-                document.getElementById('status-pill').className = "locked";
-            } else {
-                document.getElementById('status-pill').textContent = "🔍 Looking...";
-                document.getElementById('status-pill').className = "";
-            }
-        }
-    },
-
-    setupTouch: function() {
-        const pad = document.getElementById('touch-pad');
-        let drag=false, sx=0, sy=0, ox=0, oy=0;
-        pad.addEventListener('touchstart', e => {
-            if(this.locked) return;
-            drag=true; sx=e.touches[0].clientX; sy=e.touches[0].clientY;
-            ox=this.graphics.stencil.position.x; oy=this.graphics.stencil.position.y;
-        });
-        pad.addEventListener('touchmove', e => {
-            if(!drag) return;
-            const scale = Math.abs(this.graphics.root.position.z)/1000 * 2.5;
-            this.graphics.stencil.position.x = ox + (e.touches[0].clientX-sx)*scale;
-            this.graphics.stencil.position.y = oy - (e.touches[0].clientY-sy)*scale;
-        });
-        pad.addEventListener('touchend', () => drag=false);
-    },
-
-    lockView: function() {
-        this.locked = true;
-        document.getElementById('camera-layer').pause();
-        document.getElementById('controls-panel').classList.add('hidden');
-        document.getElementById('result-panel').classList.remove('hidden');
-    },
-
-    resetObject: function() { this.graphics.stencil.position.set(150,0,0); },
-
-    startAgain: function() {
-        // Stop camera stream
-        const video = document.getElementById('camera-layer');
-        if (video.srcObject) {
-            video.srcObject.getTracks().forEach(track => track.stop());
-            video.srcObject = null;
-        }
-
-        // Reset state
-        this.locked = false;
-        this.graphics = null;
-
-        // Hide result panel and status pill
-        document.getElementById('result-panel').classList.add('hidden');
-        document.getElementById('status-pill').classList.add('hidden');
-
-        // Show menu panel
-        document.getElementById('menu-panel').classList.remove('hidden');
-    },
-    
-    // Captures combined image: video feed + AR graphics overlay
-    // Correctly handles video with 'object-fit: cover' behavior
-    // Uses Web Share API to save directly to gallery/photos on supported devices
-    captureImage: async function() {
-        const canvas = document.createElement('canvas');
-        const video = document.getElementById('camera-layer');
-        const arCanvas = document.getElementById('ar-layer');
-
-        // Use window dimensions to match the AR canvas size (which is full screen)
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        const ctx = canvas.getContext('2d');
-
-        // --- Calculate video draw parameters to replicate object-fit: cover ---
-        const videoAspect = video.videoWidth / video.videoHeight;
-        const canvasAspect = canvas.width / canvas.height;
-
-        let drawWidth, drawHeight, offsetX, offsetY;
-
-        if (videoAspect > canvasAspect) {
-            // Video is wider than canvas ratio (covers height, cropped horizontally)
-            drawHeight = canvas.height;
-            drawWidth = drawHeight * videoAspect;
-            offsetX = (canvas.width - drawWidth) / 2;
-            offsetY = 0;
-        } else {
-            // Video is taller than canvas ratio (covers width, cropped vertically)
-            drawWidth = canvas.width;
-            drawHeight = drawWidth / videoAspect;
-            offsetX = 0;
-            offsetY = (canvas.height - drawHeight) / 2;
-        }
-
-        // Draw the video frame with the correct scale and offset
-        ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
-
-        // Draw the AR overlay on top
-        ctx.drawImage(arCanvas, 0, 0);
-
-        // Convert to blob
-        canvas.toBlob(async function(blob) {
-            const timestamp = new Date().toISOString().split('.')[0].replace(/[:.]/g, '-');
-            const filename = 'clearance-check-' + timestamp + '.png';
-            
-            // Create a File object from the blob for Web Share API
-            // Fallback to blob if File constructor not supported (older Safari)
-            let file;
-            try {
-                file = new File([blob], filename, { type: 'image/png' });
-            } catch (e) {
-                // File constructor not supported, use blob directly
-                file = blob;
-                file.name = filename;
-            }
-
-            // Try Web Share API first (allows saving to gallery on mobile)
-            if (navigator.share) {
-                // Check if file sharing is supported
-                // Use canShare if available, otherwise attempt to share and handle errors
-                let canAttemptShare = true;
-                
-                if (navigator.canShare) {
-                    try {
-                        canAttemptShare = navigator.canShare({ files: [file] });
-                    } catch (e) {
-                        console.log('canShare check failed:', e);
-                        canAttemptShare = false;
-                    }
-                }
-                
-                if (canAttemptShare) {
-                    try {
-                        await navigator.share({
-                            files: [file],
-                            title: 'Clearance Check',
-                            text: 'AR Clearance visualization captured'
-                        });
-                        console.log('✓ Image shared successfully');
-                        return;
-                    } catch (error) {
-                        // User cancelled, file sharing not supported, or other error
-                        // Fall back to download for all errors except user cancellation
-                        if (error.name === 'AbortError') {
-                            console.log('User cancelled share');
-                            return; // Don't download if user explicitly cancelled
-                        } else {
-                            console.log('Share failed, falling back to download:', error);
-                        }
-                    }
-                }
-            }
-
-            // Fallback: Traditional download method
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            console.log('✓ Image downloaded successfully');
-        }, 'image/png');
+        src.delete(); gray.delete();
     }
 };
 
