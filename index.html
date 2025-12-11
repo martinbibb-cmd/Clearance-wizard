@@ -83,7 +83,42 @@
     <div id="ui-layer">
         <div id="status-pill" class="hidden">Initializing...</div>
 
-        <div id="menu-panel" class="card interactive">
+        <div id="welcome-panel" class="card interactive">
+            <h1>🔥 Clearance Genie</h1>
+            <p style="text-align: center; color: #666; margin-bottom: 20px; font-size: 0.95rem;">
+                AR Clearance Checker for Heating Appliances
+            </p>
+
+            <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h2 style="margin: 0 0 10px 0; font-size: 1rem; color: var(--wb-blue);">📋 How to Use</h2>
+                <ol style="margin: 0; padding-left: 20px; color: #444; font-size: 0.85rem; line-height: 1.6;">
+                    <li><strong>Print a marker:</strong> Print an ArUco marker or high-contrast square (recommended 190mm A4 square).</li>
+                    <li><strong>Select settings:</strong> Choose your marker size, appliance category, and model.</li>
+                    <li><strong>Start camera:</strong> Point your device at the marker.</li>
+                    <li><strong>View in 3D:</strong> The AR clearance volume will appear with parallax effects as you move.</li>
+                    <li><strong>Lock view:</strong> When satisfied, lock the view and capture the image.</li>
+                    <li><strong>Review:</strong> Check the clearance requirements are met in 3D space.</li>
+                </ol>
+            </div>
+
+            <div style="background: #fff5e6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #ff9800;">
+                <p style="margin: 0; font-size: 0.8rem; color: #666;">
+                    <strong>💡 Tip:</strong> Larger markers (190mm) provide better tracking stability, especially when viewing from a distance.
+                </p>
+            </div>
+
+            <div style="background: #f0f0f0; padding: 12px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #666;">
+                <p style="margin: 0; font-size: 0.75rem; color: #666;">
+                    <strong>📍 ArUco Markers:</strong> For best results, use ArUco markers (DICT_4X4_50). Download from
+                    <a href="https://chev.me/arucogen/" target="_blank" style="color: var(--wb-blue);">arucogen</a>
+                    or use any high-contrast square pattern.
+                </p>
+            </div>
+
+            <button class="primary" onclick="App.showMainMenu()">Get Started</button>
+        </div>
+
+        <div id="menu-panel" class="card interactive hidden">
             <h1>🔥 Clearance Genie</h1>
             
             <label>1. Marker Size</label>
@@ -92,7 +127,7 @@
                 <option value="53">53mm (Credit Card)</option>
                 <option value="148">148mm (A5 Square)</option>
                 <option value="160">160mm (A4 Print)</option>
-                <option value="190">190mm (A4 Square)</option>
+                <option value="190" selected>190mm (A4 Square) - Recommended</option>
                 <option value="custom">Custom Size...</option>
             </select>
             
@@ -132,7 +167,7 @@
 
         <div id="result-panel" class="control-bar interactive hidden">
             <button class="btn-round" style="background: var(--wb-blue); color: white;" onclick="App.captureImage()" aria-label="Capture AR view" title="Capture current AR view as image">📷</button>
-            <button class="primary" style="max-width:200px;" onclick="location.reload()">New Check</button>
+            <button class="primary" style="max-width:200px;" onclick="App.startAgain()">Start Again</button>
         </div>
     </div>
 
@@ -195,12 +230,13 @@ const APPLIANCE_DB = [
 ];
 
 // ==========================================
-// 👁️ VISION SYSTEM (Improved Marker Detection)
+// 👁️ VISION SYSTEM (ArUco Marker Detection)
 // ==========================================
 class VisionSystem {
     constructor() {
         this.ready = false;
         this.scale = 0.5;
+        this.useAruco = true; // Use ArUco detection for better pose estimation
     }
 
     init(video) {
@@ -210,10 +246,28 @@ class VisionSystem {
 
         this.src = new cv.Mat(h, w, cv.CV_8UC4);
         this.gray = new cv.Mat();
-        this.blurred = new cv.Mat();
-        this.binary = new cv.Mat();
-        this.contours = new cv.MatVector();
-        this.hierarchy = new cv.Mat();
+
+        // ArUco detection setup
+        if (this.useAruco) {
+            try {
+                // Use DICT_4X4_50 dictionary (small, fast, good for mobile)
+                this.dictionary = new cv.aruco_Dictionary(cv.DICT_4X4_50);
+                this.detectorParams = new cv.aruco_DetectorParameters();
+                console.log("ArUco detector initialized");
+            } catch(e) {
+                console.warn("ArUco not available, falling back to square detection:", e);
+                this.useAruco = false;
+            }
+        }
+
+        // Fallback to square detection
+        if (!this.useAruco) {
+            this.blurred = new cv.Mat();
+            this.binary = new cv.Mat();
+            this.contours = new cv.MatVector();
+            this.hierarchy = new cv.Mat();
+        }
+
         this.ready = true;
     }
 
@@ -235,17 +289,57 @@ class VisionSystem {
         }
 
         this._ctx.drawImage(video, 0, 0, w, h);
-
         this.src.data.set(this._ctx.getImageData(0,0,w,h).data);
         cv.cvtColor(this.src, this.gray, cv.COLOR_RGBA2GRAY);
-        
+
+        if (this.useAruco) {
+            return this._findArucoMarker(video, markerSize);
+        } else {
+            return this._findSquareMarker(video, markerSize, w, h);
+        }
+    }
+
+    _findArucoMarker(video, markerSize) {
+        try {
+            const markerCorners = new cv.MatVector();
+            const markerIds = new cv.Mat();
+            const rejectedCandidates = new cv.MatVector();
+
+            // Detect ArUco markers
+            cv.detectMarkers(this.gray, this.dictionary, markerCorners, markerIds, this.detectorParams, rejectedCandidates);
+
+            if (markerIds.rows > 0) {
+                // Use the first detected marker
+                const corners = markerCorners.get(0);
+                const pose = this._getPoseFromCorners(corners, video.videoWidth, video.videoHeight, this.scale, markerSize);
+
+                // Store rotation for parallax effects
+                pose.rotation = this._getRotationFromCorners(corners);
+
+                markerCorners.delete();
+                markerIds.delete();
+                rejectedCandidates.delete();
+
+                return pose;
+            }
+
+            markerCorners.delete();
+            markerIds.delete();
+            rejectedCandidates.delete();
+        } catch(e) {
+            console.error("ArUco detection error:", e);
+        }
+        return null;
+    }
+
+    _findSquareMarker(video, markerSize, w, h) {
         // Apply Gaussian blur to reduce noise
         const ksize = new cv.Size(5, 5);
         cv.GaussianBlur(this.gray, this.blurred, ksize, 0);
-        
+
         // Use Otsu's thresholding for better binary conversion
         cv.threshold(this.blurred, this.binary, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-        
+
         // Find contours
         cv.findContours(this.binary, this.contours, this.hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
@@ -257,21 +351,21 @@ class VisionSystem {
         for (let i = 0; i < this.contours.size(); ++i) {
             let cnt = this.contours.get(i);
             let area = cv.contourArea(cnt);
-            
+
             if (area > minArea && area < maxArea_limit) {
                 let peri = cv.arcLength(cnt, true);
                 let approx = new cv.Mat();
                 cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-                
+
                 if (approx.rows === 4 && cv.isContourConvex(approx)) {
                     // Check if it's roughly square by comparing aspect ratio
                     const rect = cv.boundingRect(approx);
                     const aspectRatio = Math.max(rect.width, rect.height) / Math.min(rect.width, rect.height);
-                    
+
                     // Accept markers with aspect ratio <= 1.4 (roughly square)
                     if (aspectRatio <= 1.4 && area > maxArea) {
                         maxArea = area;
-                        bestPose = this._getPose(approx, video.videoWidth, video.videoHeight, this.scale, markerSize);
+                        bestPose = this._getPoseFromApprox(approx, video.videoWidth, video.videoHeight, this.scale, markerSize);
                     }
                 }
                 approx.delete();
@@ -280,10 +374,44 @@ class VisionSystem {
         return bestPose;
     }
 
-    _getPose(approx, vw, vh, scale, markerSize) {
+    _getRotationFromCorners(corners) {
+        // Extract corner points (ArUco markers have 4 corners)
         const c = [];
-        for(let j=0; j<8; j+=2) c.push({x: approx.data32S[j]/scale, y: approx.data32S[j+1]/scale});
-        
+        for(let i = 0; i < 4; i++) {
+            c.push({
+                x: corners.data32F[i * 2],
+                y: corners.data32F[i * 2 + 1]
+            });
+        }
+
+        // Calculate rotation angles based on marker orientation
+        // Vector from corner 0 to corner 1 (top edge)
+        const dx = c[1].x - c[0].x;
+        const dy = c[1].y - c[0].y;
+        const rotZ = Math.atan2(dy, dx);
+
+        // Estimate tilt based on perspective distortion
+        const topWidth = Math.hypot(c[1].x - c[0].x, c[1].y - c[0].y);
+        const bottomWidth = Math.hypot(c[2].x - c[3].x, c[2].y - c[3].y);
+        const rotX = Math.atan((topWidth - bottomWidth) / ((topWidth + bottomWidth) / 2)) * 0.5;
+
+        const leftHeight = Math.hypot(c[3].x - c[0].x, c[3].y - c[0].y);
+        const rightHeight = Math.hypot(c[2].x - c[1].x, c[2].y - c[1].y);
+        const rotY = Math.atan((leftHeight - rightHeight) / ((leftHeight + rightHeight) / 2)) * 0.5;
+
+        return { x: rotX, y: rotY, z: rotZ };
+    }
+
+    _getPoseFromCorners(corners, vw, vh, scale, markerSize) {
+        // Extract corner points
+        const c = [];
+        for(let i = 0; i < 4; i++) {
+            c.push({
+                x: corners.data32F[i * 2] / scale,
+                y: corners.data32F[i * 2 + 1] / scale
+            });
+        }
+
         // Calculate marker width in pixels (average of all four edges)
         const wPx = (
             Math.hypot(c[0].x-c[1].x, c[0].y-c[1].y) +
@@ -291,26 +419,54 @@ class VisionSystem {
             Math.hypot(c[2].x-c[3].x, c[2].y-c[3].y) +
             Math.hypot(c[3].x-c[0].x, c[3].y-c[0].y)
         ) / 4;
-        
+
         // Calculate pose using pinhole camera model
         const vFovRad = 60 * Math.PI / 180;
         const focal = (vh / 2) / Math.tan(vFovRad / 2);
         const z = -(markerSize * focal) / wPx;
-        
+
         // Calculate center of marker (average of all corners)
         const cx = (c[0].x + c[1].x + c[2].x + c[3].x) / 4;
         const cy = (c[0].y + c[1].y + c[2].y + c[3].y) / 4;
-        
+
         // Convert to 3D position
         const x = (cx - vw/2) * (Math.abs(z)/focal);
         const y = (cy - vh/2) * (Math.abs(z)/focal) * -1;
-        
+
+        return { x, y, z };
+    }
+
+    _getPoseFromApprox(approx, vw, vh, scale, markerSize) {
+        const c = [];
+        for(let j=0; j<8; j+=2) c.push({x: approx.data32S[j]/scale, y: approx.data32S[j+1]/scale});
+
+        // Calculate marker width in pixels (average of all four edges)
+        const wPx = (
+            Math.hypot(c[0].x-c[1].x, c[0].y-c[1].y) +
+            Math.hypot(c[1].x-c[2].x, c[1].y-c[2].y) +
+            Math.hypot(c[2].x-c[3].x, c[2].y-c[3].y) +
+            Math.hypot(c[3].x-c[0].x, c[3].y-c[0].y)
+        ) / 4;
+
+        // Calculate pose using pinhole camera model
+        const vFovRad = 60 * Math.PI / 180;
+        const focal = (vh / 2) / Math.tan(vFovRad / 2);
+        const z = -(markerSize * focal) / wPx;
+
+        // Calculate center of marker (average of all corners)
+        const cx = (c[0].x + c[1].x + c[2].x + c[3].x) / 4;
+        const cy = (c[0].y + c[1].y + c[2].y + c[3].y) / 4;
+
+        // Convert to 3D position
+        const x = (cx - vw/2) * (Math.abs(z)/focal);
+        const y = (cy - vh/2) * (Math.abs(z)/focal) * -1;
+
         return { x, y, z };
     }
 }
 
 // ==========================================
-// 🎨 GRAPHICS (Technical Stencils)
+// 🎨 GRAPHICS (3D Rendering with Translucent Clearances)
 // ==========================================
 // Note: preserveDrawingBuffer is required to capture WebGL canvas content
 // in screenshots. Without it, the canvas is cleared after rendering and
@@ -324,6 +480,7 @@ class GraphicsEngine {
         this.root = new THREE.Group();
         this.scene.add(this.root);
         this.stencil = null;
+        this.parallaxEnabled = true;
     }
 
     setStencil(data) {
@@ -341,56 +498,112 @@ class GraphicsEngine {
     }
 
     _createBox(data) {
-        // Clearance Red Zone calculations
-        let clearanceTop, clearanceBottom, clearanceLeft, clearanceRight;
-        
+        // Clearance calculations
+        let clearanceTop, clearanceBottom, clearanceLeft, clearanceRight, clearanceFront;
+
         if (typeof data.clearance === 'object' && data.clearance !== null && !Array.isArray(data.clearance)) {
             clearanceTop = data.clearance.top || 0;
             clearanceBottom = data.clearance.bottom || 0;
             clearanceLeft = data.clearance.left || 0;
             clearanceRight = data.clearance.right || 0;
+            clearanceFront = data.clearance.front || 0;
         } else {
-            clearanceTop = clearanceBottom = clearanceLeft = clearanceRight = data.clearance || 0;
+            clearanceTop = clearanceBottom = clearanceLeft = clearanceRight = clearanceFront = data.clearance || 0;
         }
-        
+
         const zW = data.w + clearanceLeft + clearanceRight;
         const zH = data.h + clearanceTop + clearanceBottom;
-        
+        const zD = data.d + clearanceFront;
+
         const offsetX = (clearanceRight - clearanceLeft) / 2;
         const offsetY = (clearanceTop - clearanceBottom) / 2;
-        
-        // 1. Draw Clearance Zone (Red Outline)
-        const zoneGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(zW, zH, 5));
-        const zoneMesh = new THREE.LineSegments(zoneGeo, new THREE.LineBasicMaterial({ color: 0xe30613 }));
-        zoneMesh.position.set(offsetX, offsetY, 0);
-        this.stencil.add(zoneMesh);
+        const offsetZ = clearanceFront / 2;
 
-        // 2. Draw Appliance (Blue Outline)
-        const boxGeo = new THREE.BoxGeometry(data.w, data.h, 5);
-        const boxEdges = new THREE.EdgesGeometry(boxGeo);
-        this.stencil.add(new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x005eb8 })));
+        // 1. Create 3D Appliance Box (Blue - solid representation)
+        const applianceGeo = new THREE.BoxGeometry(data.w, data.h, data.d);
+        const applianceMat = new THREE.MeshBasicMaterial({
+            color: 0x005eb8,
+            opacity: 0.3,
+            transparent: true,
+            side: THREE.DoubleSide
+        });
+        const applianceMesh = new THREE.Mesh(applianceGeo, applianceMat);
+        applianceMesh.position.set(0, 0, -data.d/2);
+        this.stencil.add(applianceMesh);
 
-        // 3. Add transparent fill to clearance zone for better visual clarity
-        const zoneFillGeo = new THREE.PlaneGeometry(zW, zH);
-        const zoneFillMat = new THREE.MeshBasicMaterial({ color: 0xe30613, opacity: 0.1, transparent: true, side: THREE.DoubleSide });
-        const zoneFillMesh = new THREE.Mesh(zoneFillGeo, zoneFillMat);
-        zoneFillMesh.position.set(offsetX, offsetY, -2);
-        this.stencil.add(zoneFillMesh);
+        // 2. Appliance Edges (Blue outline)
+        const applianceEdges = new THREE.EdgesGeometry(applianceGeo);
+        const applianceLines = new THREE.LineSegments(applianceEdges, new THREE.LineBasicMaterial({
+            color: 0x005eb8,
+            linewidth: 2
+        }));
+        applianceLines.position.set(0, 0, -data.d/2);
+        this.stencil.add(applianceLines);
 
-        // 4. Hatching clipped to the Clearance Zone (The full red box)
+        // 3. Create 3D Clearance Zone Box (Red - translucent volume)
+        const clearanceGeo = new THREE.BoxGeometry(zW, zH, zD);
+        const clearanceMat = new THREE.MeshBasicMaterial({
+            color: 0xe30613,
+            opacity: 0.15,
+            transparent: true,
+            side: THREE.DoubleSide,
+            depthWrite: false  // Allows proper transparency layering
+        });
+        const clearanceMesh = new THREE.Mesh(clearanceGeo, clearanceMat);
+        clearanceMesh.position.set(offsetX, offsetY, -zD/2);
+        this.stencil.add(clearanceMesh);
+
+        // 4. Clearance Zone Edges (Red outline)
+        const clearanceEdges = new THREE.EdgesGeometry(clearanceGeo);
+        const clearanceLines = new THREE.LineSegments(clearanceEdges, new THREE.LineBasicMaterial({
+            color: 0xe30613,
+            linewidth: 2
+        }));
+        clearanceLines.position.set(offsetX, offsetY, -zD/2);
+        this.stencil.add(clearanceLines);
+
+        // 5. Add front-face hatching for better visibility
         const hatchPoints = [];
         const startX = -zW/2 + offsetX, endX = zW/2 + offsetX;
         const startY = -zH/2 + offsetY, endY = zH/2 + offsetY;
 
-        // Diagonal hatching lines (45 degrees)
+        // Diagonal hatching lines (45 degrees) on the front face
         for(let x = startX - zH; x < endX + zH; x += 40) {
-            // Line from (x, startY) to (x + zH, endY)
             hatchPoints.push(new THREE.Vector3(x, startY, 0));
             hatchPoints.push(new THREE.Vector3(x + zH, endY, 0));
         }
-        
-        const hatchMat = new THREE.LineBasicMaterial({ color: 0xe30613, opacity: 0.5, transparent: true });
+
+        const hatchMat = new THREE.LineBasicMaterial({ color: 0xe30613, opacity: 0.4, transparent: true });
         this.stencil.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(hatchPoints), hatchMat));
+
+        // 6. Add dimension labels (optional - for better UX)
+        if (clearanceFront > 0) {
+            this._addDepthIndicator(data.w, data.h, -data.d, clearanceFront);
+        }
+    }
+
+    _addDepthIndicator(w, h, startZ, depth) {
+        // Visual indicator showing the clearance depth (front)
+        const points = [];
+        points.push(new THREE.Vector3(w/2 + 50, h/2 + 50, startZ));
+        points.push(new THREE.Vector3(w/2 + 50, h/2 + 50, startZ - depth));
+
+        const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+        const lineMat = new THREE.LineBasicMaterial({ color: 0xe30613, linewidth: 2 });
+        const line = new THREE.Line(lineGeo, lineMat);
+        this.stencil.add(line);
+
+        // Add arrow heads
+        const arrowSize = 30;
+        const arrowPoints = [
+            new THREE.Vector3(w/2 + 50, h/2 + 50, startZ),
+            new THREE.Vector3(w/2 + 30, h/2 + 50, startZ - 20),
+            new THREE.Vector3(w/2 + 70, h/2 + 50, startZ - 20),
+            new THREE.Vector3(w/2 + 50, h/2 + 50, startZ)
+        ];
+        const arrowGeo = new THREE.BufferGeometry().setFromPoints(arrowPoints);
+        const arrow = new THREE.Line(arrowGeo, lineMat);
+        this.stencil.add(arrow);
     }
 
     _createRadial(data) {
@@ -406,7 +619,7 @@ class GraphicsEngine {
 // 📱 CONTROLLER (Updated Initialization Logic)
 // ==========================================
 const App = {
-    markerSize: 45,
+    markerSize: 190,
     vision: new VisionSystem(),
     graphics: null,
     locked: false,
@@ -468,6 +681,12 @@ const App = {
     // Core function to handle failed OpenCV script download (network error)
     onCvError: function() {
         this.handleInitializationFailure("OpenCV script failed to download (Network Error).");
+    },
+
+    // Show main menu from welcome screen
+    showMainMenu: function() {
+        document.getElementById('welcome-panel').classList.add('hidden');
+        document.getElementById('menu-panel').classList.remove('hidden');
     },
 
     // Handle marker size selection change
@@ -594,17 +813,27 @@ const App = {
         requestAnimationFrame(this.loop.bind(this));
         const video = document.getElementById('camera-layer');
         if(video.readyState !== 4) return;
-        
+
         this.graphics.render();
 
         if(!this.locked) {
             const pose = this.vision.findMarker(video, this.markerSize);
             if(pose) {
+                // Update position with smooth interpolation
                 const t = this.graphics.root.position;
                 t.x += (pose.x - t.x) * 0.2;
                 t.y += (pose.y - t.y) * 0.2;
                 t.z += (pose.z - t.z) * 0.2;
-                document.getElementById('status-pill').textContent = "✓ Locked";
+
+                // Apply parallax rotation if available (from ArUco detection)
+                if(pose.rotation && this.graphics.parallaxEnabled) {
+                    const r = this.graphics.root.rotation;
+                    r.x += (pose.rotation.x - r.x) * 0.15;
+                    r.y += (pose.rotation.y - r.y) * 0.15;
+                    r.z += (pose.rotation.z - r.z) * 0.15;
+                }
+
+                document.getElementById('status-pill').textContent = "✓ Tracking";
                 document.getElementById('status-pill').className = "locked";
             } else {
                 document.getElementById('status-pill').textContent = "🔍 Looking...";
@@ -636,7 +865,28 @@ const App = {
         document.getElementById('controls-panel').classList.add('hidden');
         document.getElementById('result-panel').classList.remove('hidden');
     },
+
     resetObject: function() { this.graphics.stencil.position.set(150,0,0); },
+
+    startAgain: function() {
+        // Stop camera stream
+        const video = document.getElementById('camera-layer');
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+            video.srcObject = null;
+        }
+
+        // Reset state
+        this.locked = false;
+        this.graphics = null;
+
+        // Hide result panel and status pill
+        document.getElementById('result-panel').classList.add('hidden');
+        document.getElementById('status-pill').classList.add('hidden');
+
+        // Show menu panel
+        document.getElementById('menu-panel').classList.remove('hidden');
+    },
     
     // Captures combined image: video feed + AR graphics overlay
     // Correctly handles video with 'object-fit: cover' behavior
