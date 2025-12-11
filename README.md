@@ -30,10 +30,34 @@ http://localhost:8000
 
 ## Features
 
+- **Progressive Web App (PWA)**: Install on your device for offline access and app-like experience
 - AR-based clearance visualization using ArUco markers
 - Support for multiple appliance types (boilers, radiators, cylinders, flues)
 - Custom marker and appliance sizing
 - Real-time camera tracking and overlay
+- **Direct gallery saving**: Capture images and save directly to your device's photo gallery
+
+## Installing as a PWA
+
+### On Android (Chrome/Edge)
+1. Open the app in Chrome or Edge browser
+2. Tap the menu (⋮) and select "Install app" or "Add to Home screen"
+3. The app will be installed and appear in your app drawer
+4. Launch it like any other app for a fullscreen experience
+
+### On iOS (Safari)
+1. Open the app in Safari
+2. Tap the Share button (□ with arrow)
+3. Scroll down and tap "Add to Home Screen"
+4. Tap "Add" to confirm
+5. The app icon will appear on your home screen
+
+### Benefits of Installing
+- **Offline access**: Use the app without an internet connection (after first load)
+- **Faster loading**: Cached assets load instantly
+- **Fullscreen mode**: No browser UI cluttering your view
+- **Home screen access**: Launch directly from your device
+- **Save to gallery**: Capture and share images directly to your photo gallery
 
 ## Marker Detection
 
@@ -55,6 +79,15 @@ This application uses computer vision to detect square markers for AR tracking. 
 Larger markers (A5 or A4) provide significantly more stable tracking, especially when stepping back from the installation point. The increased pixel coverage gives the computer vision system more data to work with, reducing "jumping" or instability in the AR overlay at distance.
 
 Print the markers on white paper with a black printer for best results. The app detects the square shape using contour detection.
+
+## Capturing Images
+
+The app includes an image capture feature with smart saving:
+
+- **On mobile devices with Web Share API support**: Tap the 📷 button to capture the AR view. You can then choose to save the image to your gallery, share it, or cancel.
+- **On other devices**: The image will be downloaded automatically to your default downloads folder.
+
+The captured image includes both the camera feed and the AR overlay, showing the complete clearance visualization.
 
 ## Troubleshooting
 

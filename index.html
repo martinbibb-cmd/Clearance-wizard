@@ -3,6 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#005eb8">
+    <meta name="description" content="AR Clearance Checker for Heating Appliances">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Clearance Genie">
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+    <link rel="apple-touch-icon" href="./icon-192.png">
     <title>Clearance Genie: Final</title>
     
     <script>
@@ -890,7 +898,8 @@ const App = {
     
     // Captures combined image: video feed + AR graphics overlay
     // Correctly handles video with 'object-fit: cover' behavior
-    captureImage: function() {
+    // Uses Web Share API to save directly to gallery/photos on supported devices
+    captureImage: async function() {
         const canvas = document.createElement('canvas');
         const video = document.getElementById('camera-layer');
         const arCanvas = document.getElementById('ar-layer');
@@ -926,20 +935,60 @@ const App = {
         // Draw the AR overlay on top
         ctx.drawImage(arCanvas, 0, 0);
 
-        // Convert to blob and download
-        canvas.toBlob(function(blob) {
+        // Convert to blob
+        canvas.toBlob(async function(blob) {
+            const timestamp = new Date().toISOString().split('.')[0].replace(/[:.]/g, '-');
+            const filename = 'clearance-check-' + timestamp + '.png';
+            
+            // Create a File object from the blob for Web Share API
+            const file = new File([blob], filename, { type: 'image/png' });
+
+            // Try Web Share API first (allows saving to gallery on mobile)
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        files: [file],
+                        title: 'Clearance Check',
+                        text: 'AR Clearance visualization captured'
+                    });
+                    console.log('✓ Image shared successfully');
+                    return;
+                } catch (error) {
+                    // User cancelled or error occurred, fall back to download
+                    if (error.name !== 'AbortError') {
+                        console.log('Share failed, falling back to download:', error);
+                    }
+                }
+            }
+
+            // Fallback: Traditional download method
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            const timestamp = new Date().toISOString().split('.')[0].replace(/[:.]/g, '-');
-            a.download = 'clearance-check-' + timestamp + '.png';
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            console.log('✓ Image downloaded successfully');
         }, 'image/png');
     }
 };
+
+// ==========================================
+// 📱 PWA SERVICE WORKER REGISTRATION
+// ==========================================
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+            .then((registration) => {
+                console.log('✓ Service Worker registered successfully:', registration.scope);
+            })
+            .catch((error) => {
+                console.log('❌ Service Worker registration failed:', error);
+            });
+    });
+}
 </script>
 </body>
 </html>
