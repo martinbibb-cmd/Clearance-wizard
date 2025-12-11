@@ -90,6 +90,7 @@
             <select id="input-size" onchange="App.onSizeChange()">
                 <option value="45">45mm (Your Marker)</option>
                 <option value="53">53mm (Credit Card)</option>
+                <option value="148">148mm (A5 Square)</option>
                 <option value="160">160mm (A4 Print)</option>
                 <option value="190">190mm (A4 Square)</option>
                 <option value="custom">Custom Size...</option>
@@ -311,11 +312,14 @@ class VisionSystem {
 // ==========================================
 // 🎨 GRAPHICS (Technical Stencils)
 // ==========================================
+// Note: preserveDrawingBuffer is required to capture WebGL canvas content
+// in screenshots. Without it, the canvas is cleared after rendering and
+// captureImage() would only save the video feed without AR graphics.
 class GraphicsEngine {
     constructor(canvas) {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
-        this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.root = new THREE.Group();
         this.scene.add(this.root);
@@ -634,7 +638,8 @@ const App = {
     },
     resetObject: function() { this.graphics.stencil.position.set(150,0,0); },
     
-    // UPDATED FUNCTION: Correctly captures video with 'object-fit: cover' behavior
+    // Captures combined image: video feed + AR graphics overlay
+    // Correctly handles video with 'object-fit: cover' behavior
     captureImage: function() {
         const canvas = document.createElement('canvas');
         const video = document.getElementById('camera-layer');

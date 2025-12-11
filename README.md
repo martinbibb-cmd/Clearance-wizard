@@ -46,9 +46,13 @@ This application uses computer vision to detect square markers for AR tracking. 
 3. **Create a custom pattern**: Draw or print any high-contrast square shape
 
 **Recommended marker sizes:**
-- 45mm - Default setting
-- 53mm (credit card size) - Good balance
-- 160mm or larger - Better detection at distance
+- 45mm - Default setting (small marker)
+- 53mm (credit card size) - Good for close-up work
+- 148mm (A5 square) - **Recommended for better tracking**
+- 160mm-190mm (A4 sizes) - **Best for distant measurements**
+
+**Why larger markers work better:**
+Larger markers (A5 or A4) provide significantly more stable tracking, especially when stepping back from the installation point. The increased pixel coverage gives the computer vision system more data to work with, reducing "jumping" or instability in the AR overlay at distance.
 
 Print the markers on white paper with a black printer for best results. The app detects the square shape using contour detection.
 
