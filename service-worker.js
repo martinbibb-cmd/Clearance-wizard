@@ -19,7 +19,15 @@ self.addEventListener('install', (event) => {
         // Cache assets individually to avoid failing on CORS issues
         return Promise.allSettled(
           ASSETS_TO_CACHE.map(url => 
-            cache.add(url).catch(err => console.log(`Failed to cache ${url}:`, err))
+            cache.add(url)
+              .then(() => {
+                console.log(`Cached: ${url}`);
+                return true;
+              })
+              .catch(err => {
+                console.log(`Failed to cache ${url}:`, err);
+                return false;
+              })
           )
         );
       })

@@ -945,11 +945,18 @@ const App = {
 
             // Try Web Share API first (allows saving to gallery on mobile)
             if (navigator.share) {
-                // Check if file sharing is supported
-                // If canShare doesn't exist, try sharing anyway (older implementations)
-                // If canShare exists, check if files can be shared
-                const canShareFiles = typeof navigator.canShare === 'undefined' || 
-                                     navigator.canShare({ files: [file] });
+                let canShareFiles = false;
+                
+                try {
+                    // Check if file sharing is supported
+                    // If canShare doesn't exist, assume it might work (older implementations)
+                    // If canShare exists, check if files can be shared
+                    canShareFiles = typeof navigator.canShare === 'undefined' || 
+                                   navigator.canShare({ files: [file] });
+                } catch (e) {
+                    console.log('canShare check failed:', e);
+                    canShareFiles = false;
+                }
                 
                 if (canShareFiles) {
                     try {
