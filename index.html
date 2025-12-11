@@ -100,9 +100,10 @@
             <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
                 <h2 style="margin: 0 0 10px 0; font-size: 1rem; color: var(--wb-blue);">📋 How to Use</h2>
                 <ol style="margin: 0; padding-left: 20px; color: #444; font-size: 0.85rem; line-height: 1.6;">
-                    <li><strong>Print a marker:</strong> Print an ArUco marker or high-contrast square (recommended 190mm A4 square).</li>
+                    <li><strong>Print markers:</strong> Print ArUco markers (1 or 4 depending on mode). Use DICT_4X4_50 format.</li>
+                    <li><strong>Select mode:</strong> Choose between single marker (quick) or 4-marker setup (more accurate).</li>
                     <li><strong>Select settings:</strong> Choose your marker size, appliance category, and model.</li>
-                    <li><strong>Start camera:</strong> Point your device at the marker.</li>
+                    <li><strong>Start camera:</strong> Point your device at the marker(s).</li>
                     <li><strong>View in 3D:</strong> The AR clearance volume will appear with parallax effects as you move.</li>
                     <li><strong>Lock view:</strong> When satisfied, lock the view and capture the image.</li>
                     <li><strong>Review:</strong> Check the clearance requirements are met in 3D space.</li>
@@ -117,9 +118,9 @@
 
             <div style="background: #f0f0f0; padding: 12px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #666;">
                 <p style="margin: 0; font-size: 0.75rem; color: #666;">
-                    <strong>📍 ArUco Markers:</strong> For best results, use ArUco markers (DICT_4X4_50). Download from
-                    <a href="https://chev.me/arucogen/" target="_blank" style="color: var(--wb-blue);">arucogen</a>
-                    or use any high-contrast square pattern.
+                    <strong>📍 ArUco Markers:</strong> Use ArUco markers (DICT_4X4_50). For 4-marker mode, print markers with IDs 1, 2, 3, and 4. Download from
+                    <a href="https://chev.me/arucogen/" target="_blank" style="color: var(--wb-blue);">arucogen</a>.
+                    Single marker mode works with any ArUco marker ID.
                 </p>
             </div>
 
@@ -129,7 +130,17 @@
         <div id="menu-panel" class="card interactive hidden">
             <h1>🔥 Clearance Genie</h1>
             
-            <label>1. Marker Size</label>
+            <label>1. Marker Mode</label>
+            <select id="input-marker-mode" onchange="App.onMarkerModeChange()">
+                <option value="4-marker">4-Marker Setup (More Accurate)</option>
+                <option value="single">Single Marker (Quick Setup)</option>
+            </select>
+            
+            <div id="marker-mode-info" style="background: #e3f2fd; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.8rem; color: #0d47a1;">
+                <strong>📍 4-Marker Mode:</strong> Use 4 ArUco markers (IDs 1-4) positioned around the appliance area for enhanced accuracy and stability.
+            </div>
+            
+            <label>2. Marker Size</label>
             <select id="input-size" onchange="App.onSizeChange()">
                 <option value="45">45mm (Your Marker)</option>
                 <option value="53">53mm (Credit Card)</option>
@@ -144,7 +155,7 @@
                 <input type="number" id="custom-size-input" min="10" max="500" step="1" placeholder="Enter size in mm" aria-label="Custom marker size in millimeters">
             </div>
 
-            <label>2. Category</label>
+            <label>3. Category</label>
             <select id="input-category" onchange="App.updateModels()">
                 <option value="boiler">🔥 Boilers</option>
                 <option value="flue">⭕ Flues</option>
@@ -152,7 +163,7 @@
                 <option value="cylinder">🛢️ Cylinders</option>
             </select>
 
-            <label>3. Select Model</label>
+            <label>4. Select Model</label>
             <select id="input-type" onchange="App.onModelChange()">
             </select>
 
@@ -245,6 +256,12 @@ class VisionSystem {
         this.ready = false;
         this.scale = 0.5;
         this.useAruco = true; // Use ArUco detection for better pose estimation
+        this.markerMode = '4-marker'; // Default to 4-marker mode
+    }
+    
+    setMarkerMode(mode) {
+        this.markerMode = mode;
+        console.log('Marker mode set to:', mode);
     }
 
     init(video) {
@@ -317,12 +334,45 @@ class VisionSystem {
             cv.detectMarkers(this.gray, this.dictionary, markerCorners, markerIds, this.detectorParams, rejectedCandidates);
 
             if (markerIds.rows > 0) {
-                // Use the first detected marker
-                const corners = markerCorners.get(0);
-                const pose = this._getPoseFromCorners(corners, video.videoWidth, video.videoHeight, this.scale, markerSize);
-
-                // Store rotation for parallax effects
-                pose.rotation = this._getRotationFromCorners(corners);
+                let pose = null;
+                
+                if (this.markerMode === 'single') {
+                    // Single marker mode: use the first detected marker
+                    const corners = markerCorners.get(0);
+                    pose = this._getPoseFromCorners(corners, video.videoWidth, video.videoHeight, this.scale, markerSize);
+                    pose.rotation = this._getRotationFromCorners(corners);
+                } else {
+                    // 4-marker mode: try to find markers with IDs 1-4
+                    const targetIds = [1, 2, 3, 4];
+                    const foundMarkers = [];
+                    
+                    for (let i = 0; i < markerIds.rows; i++) {
+                        const id = markerIds.data32S[i];
+                        if (targetIds.includes(id)) {
+                            foundMarkers.push({
+                                id: id,
+                                corners: markerCorners.get(i)
+                            });
+                        }
+                    }
+                    
+                    if (foundMarkers.length >= 4) {
+                        // All 4 markers found - calculate average pose
+                        pose = this._calculateAveragePose(foundMarkers, video.videoWidth, video.videoHeight, this.scale, markerSize);
+                    } else if (foundMarkers.length > 0) {
+                        // Fallback: use first found marker from target IDs
+                        const corners = foundMarkers[0].corners;
+                        pose = this._getPoseFromCorners(corners, video.videoWidth, video.videoHeight, this.scale, markerSize);
+                        pose.rotation = this._getRotationFromCorners(corners);
+                        pose.partialDetection = true; // Flag for UI feedback
+                    } else {
+                        // No target markers found, use any detected marker as fallback
+                        const corners = markerCorners.get(0);
+                        pose = this._getPoseFromCorners(corners, video.videoWidth, video.videoHeight, this.scale, markerSize);
+                        pose.rotation = this._getRotationFromCorners(corners);
+                        pose.partialDetection = true;
+                    }
+                }
 
                 markerCorners.delete();
                 markerIds.delete();
@@ -338,6 +388,37 @@ class VisionSystem {
             console.error("ArUco detection error:", e);
         }
         return null;
+    }
+    
+    _calculateAveragePose(markers, vw, vh, scale, markerSize) {
+        // Calculate pose from each marker and average them
+        let totalX = 0, totalY = 0, totalZ = 0;
+        let totalRotX = 0, totalRotY = 0, totalRotZ = 0;
+        
+        for (const marker of markers) {
+            const pose = this._getPoseFromCorners(marker.corners, vw, vh, scale, markerSize);
+            const rot = this._getRotationFromCorners(marker.corners);
+            
+            totalX += pose.x;
+            totalY += pose.y;
+            totalZ += pose.z;
+            totalRotX += rot.x;
+            totalRotY += rot.y;
+            totalRotZ += rot.z;
+        }
+        
+        const count = markers.length;
+        return {
+            x: totalX / count,
+            y: totalY / count,
+            z: totalZ / count,
+            rotation: {
+                x: totalRotX / count,
+                y: totalRotY / count,
+                z: totalRotZ / count
+            },
+            markerCount: count
+        };
     }
 
     _findSquareMarker(video, markerSize, w, h) {
@@ -697,6 +778,18 @@ const App = {
         document.getElementById('menu-panel').classList.remove('hidden');
     },
 
+    // Handle marker mode change
+    onMarkerModeChange: function() {
+        const modeSelect = document.getElementById('input-marker-mode');
+        const modeInfo = document.getElementById('marker-mode-info');
+        
+        if (modeSelect.value === 'single') {
+            modeInfo.innerHTML = '<strong>📍 Single Marker Mode:</strong> Use any ArUco marker for quick setup. Position one marker near the appliance location.';
+        } else {
+            modeInfo.innerHTML = '<strong>📍 4-Marker Mode:</strong> Use 4 ArUco markers (IDs 1-4) positioned around the appliance area for enhanced accuracy and stability.';
+        }
+    },
+
     // Handle marker size selection change
     onSizeChange: function() {
         const sizeSelect = document.getElementById('input-size');
@@ -757,6 +850,9 @@ const App = {
             return;
         }
         
+        // Get marker mode
+        const markerMode = document.getElementById('input-marker-mode').value;
+        
         const sizeSelect = document.getElementById('input-size').value;
         
         // Get marker size from either preset or custom input
@@ -814,6 +910,7 @@ const App = {
         this.graphics.setStencil(data);
         this.setupTouch();
         this.vision.init(video);
+        this.vision.setMarkerMode(markerMode); // Set the marker detection mode
         this.loop();
     },
 
@@ -841,7 +938,14 @@ const App = {
                     r.z += (pose.rotation.z - r.z) * 0.15;
                 }
 
-                document.getElementById('status-pill').textContent = "✓ Tracking";
+                // Update status based on detection quality
+                let statusText = "✓ Tracking";
+                if (pose.markerCount) {
+                    statusText = `✓ Tracking (${pose.markerCount}/4 markers)`;
+                } else if (pose.partialDetection) {
+                    statusText = "✓ Tracking (Partial)";
+                }
+                document.getElementById('status-pill').textContent = statusText;
                 document.getElementById('status-pill').className = "locked";
             } else {
                 document.getElementById('status-pill').textContent = "🔍 Looking...";
