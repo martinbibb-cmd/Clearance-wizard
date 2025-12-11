@@ -944,15 +944,19 @@ const App = {
             const file = new File([blob], filename, { type: 'image/png' });
 
             // Try Web Share API first (allows saving to gallery on mobile)
+            // Check if navigator.share exists before attempting to use it
             if (navigator.share) {
                 let canShareFiles = false;
                 
                 try {
                     // Check if file sharing is supported
-                    // If canShare doesn't exist, assume it might work (older implementations)
-                    // If canShare exists, check if files can be shared
-                    canShareFiles = typeof navigator.canShare === 'undefined' || 
-                                   navigator.canShare({ files: [file] });
+                    // Some browsers support share but not canShare method
+                    if (typeof navigator.canShare === 'function') {
+                        canShareFiles = navigator.canShare({ files: [file] });
+                    } else {
+                        // Older implementations without canShare - try sharing anyway
+                        canShareFiles = true;
+                    }
                 } catch (e) {
                     console.log('canShare check failed:', e);
                     canShareFiles = false;

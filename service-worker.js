@@ -16,20 +16,28 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Service Worker: Caching assets');
-        // Cache assets individually to avoid failing on CORS issues
-        return Promise.allSettled(
-          ASSETS_TO_CACHE.map(url => 
-            cache.add(url)
-              .then(() => {
-                console.log(`Cached: ${url}`);
-                return true;
-              })
-              .catch(err => {
-                console.log(`Failed to cache ${url}:`, err);
-                return false;
-              })
-          )
-        );
+        // Try to cache all assets atomically first
+        return cache.addAll(ASSETS_TO_CACHE)
+          .then(() => {
+            console.log('All assets cached successfully');
+          })
+          .catch((err) => {
+            // If atomic caching fails (e.g., CORS issues), cache individually
+            console.log('Atomic caching failed, trying individual caching:', err);
+            return Promise.allSettled(
+              ASSETS_TO_CACHE.map(url => 
+                cache.add(url)
+                  .then(() => {
+                    console.log(`Cached: ${url}`);
+                    return true;
+                  })
+                  .catch(err => {
+                    console.log(`Failed to cache ${url}:`, err);
+                    return false;
+                  })
+              )
+            );
+          });
       })
       .then(() => self.skipWaiting())
   );
