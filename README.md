@@ -61,15 +61,36 @@ http://localhost:8000
 
 ## Marker Detection
 
-This application uses computer vision to detect square markers for AR tracking. You need to have a printed square marker (ideally black on white background) to use the app.
+This application uses ArUco marker detection for AR tracking. ArUco markers are square black and white patterns that provide precise pose estimation.
 
-**How to create markers:**
+### Marker Modes
 
-1. **Print a simple square**: Any black square on white paper will work
-2. **Use QR codes**: QR codes work well as they're already square
-3. **Create a custom pattern**: Draw or print any high-contrast square shape
+The app supports two marker detection modes:
 
-**Recommended marker sizes:**
+#### 1. **Single Marker Mode (Quick Setup)**
+- Use **any ArUco marker** (DICT_4X4_50 format)
+- Best for quick measurements and single-person setup
+- Position one marker near the appliance location
+- Fastest setup time
+
+#### 2. **4-Marker Mode (More Accurate)**
+- Use **4 ArUco markers with IDs 1, 2, 3, and 4**
+- Provides enhanced accuracy through averaging multiple marker positions
+- Position markers around the appliance area
+- More stable tracking, especially at distance
+- Recommended for final documentation
+
+### How to Get ArUco Markers
+
+1. **Download pre-generated markers**: Visit [arucogen](https://chev.me/arucogen/)
+   - Select dictionary: `DICT_4X4_50`
+   - For single marker mode: Download any ID
+   - For 4-marker mode: Download markers with IDs 1, 2, 3, and 4
+   
+2. **Print markers**: Print on white paper with a laser printer for best results
+
+### Recommended Marker Sizes
+
 - 45mm - Default setting (small marker)
 - 53mm (credit card size) - Good for close-up work
 - 148mm (A5 square) - **Recommended for better tracking**
@@ -77,8 +98,6 @@ This application uses computer vision to detect square markers for AR tracking. 
 
 **Why larger markers work better:**
 Larger markers (A5 or A4) provide significantly more stable tracking, especially when stepping back from the installation point. The increased pixel coverage gives the computer vision system more data to work with, reducing "jumping" or instability in the AR overlay at distance.
-
-Print the markers on white paper with a black printer for best results. The app detects the square shape using contour detection.
 
 ## Capturing Images
 

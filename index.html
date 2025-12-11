@@ -325,11 +325,11 @@ class VisionSystem {
     }
 
     _findArucoMarker(video, markerSize) {
+        const markerCorners = new cv.MatVector();
+        const markerIds = new cv.Mat();
+        const rejectedCandidates = new cv.MatVector();
+        
         try {
-            const markerCorners = new cv.MatVector();
-            const markerIds = new cv.Mat();
-            const rejectedCandidates = new cv.MatVector();
-
             // Detect ArUco markers
             cv.detectMarkers(this.gray, this.dictionary, markerCorners, markerIds, this.detectorParams, rejectedCandidates);
 
@@ -356,7 +356,7 @@ class VisionSystem {
                         }
                     }
                     
-                    if (foundMarkers.length >= 4) {
+                    if (foundMarkers.length === 4) {
                         // All 4 markers found - calculate average pose
                         pose = this._calculateAveragePose(foundMarkers, video.videoWidth, video.videoHeight, this.scale, markerSize);
                     } else if (foundMarkers.length > 0) {
@@ -365,6 +365,7 @@ class VisionSystem {
                         pose = this._getPoseFromCorners(corners, video.videoWidth, video.videoHeight, this.scale, markerSize);
                         pose.rotation = this._getRotationFromCorners(corners);
                         pose.partialDetection = true; // Flag for UI feedback
+                        pose.markerCount = foundMarkers.length; // Track partial count
                     } else {
                         // No target markers found, use any detected marker as fallback
                         const corners = markerCorners.get(0);
@@ -374,20 +375,19 @@ class VisionSystem {
                     }
                 }
 
-                markerCorners.delete();
-                markerIds.delete();
-                rejectedCandidates.delete();
-
                 return pose;
             }
 
+            return null;
+        } catch(e) {
+            console.error("ArUco detection error:", e);
+            return null;
+        } finally {
+            // Always clean up OpenCV resources
             markerCorners.delete();
             markerIds.delete();
             rejectedCandidates.delete();
-        } catch(e) {
-            console.error("ArUco detection error:", e);
         }
-        return null;
     }
     
     _calculateAveragePose(markers, vw, vh, scale, markerSize) {
@@ -938,13 +938,18 @@ const App = {
                     r.z += (pose.rotation.z - r.z) * 0.15;
                 }
 
-                // Update status based on detection quality
+                // Update status based on detection quality and mode
                 let statusText = "✓ Tracking";
-                if (pose.markerCount) {
-                    statusText = `✓ Tracking (${pose.markerCount}/4 markers)`;
-                } else if (pose.partialDetection) {
-                    statusText = "✓ Tracking (Partial)";
+                if (this.vision.markerMode === '4-marker') {
+                    if (pose.markerCount === 4) {
+                        statusText = "✓ Tracking (4/4 markers)";
+                    } else if (pose.markerCount) {
+                        statusText = `✓ Tracking (${pose.markerCount}/4 markers)`;
+                    } else if (pose.partialDetection) {
+                        statusText = "✓ Tracking (Partial)";
+                    }
                 }
+                // In single marker mode, just show "✓ Tracking"
                 document.getElementById('status-pill').textContent = statusText;
                 document.getElementById('status-pill').className = "locked";
             } else {
