@@ -77,8 +77,13 @@ self.addEventListener('fetch', (event) => {
 
           return response;
         }).catch((error) => {
-          console.log('Fetch failed; returning offline page instead.', error);
-          // You could return a custom offline page here
+          console.log('Fetch failed:', error);
+          // Return a basic error response when both network and cache fail
+          return new Response('Offline - Resource not available', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: new Headers({ 'Content-Type': 'text/plain' })
+          });
         });
       })
   );
