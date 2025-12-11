@@ -93,11 +93,19 @@
 
         <div id="setup-card" class="card interactive">
             <h1>Pro Mini-App</h1>
-            <p style="text-align: center; color: #666; margin-bottom: 20px; font-size: 0.95rem;">
+            <p style="text-align: center; color: #666; margin-bottom: 15px; font-size: 0.95rem;">
                 • Use 4 markers (IDs 1-4)<br>
                 • Marker size: 90mm<br>
                 • Scaled for 4000 Unit (724mm)
             </p>
+            
+            <div style="background: #f0f7ff; padding: 12px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--wb-blue);">
+                <p style="margin: 0; font-size: 0.8rem; color: #444;">
+                    <strong>📋 Requirements:</strong><br>
+                    This Pro version requires OpenCV.js compiled with ArUco module support for marker detection.
+                </p>
+            </div>
+            
             <button id="start-camera-btn" class="primary" onclick="App.start()" disabled>Loading OpenCV...</button>
         </div>
 
@@ -114,14 +122,28 @@ class ProVision {
         this.markerSize = 90; // Fixed 90mm per Pro requirement
         this.dictionary = null;
         this.params = null;
+        this.hasAruco = false;
     }
 
     init() {
-        this.dictionary = new cv.aruco_Dictionary(cv.DICT_4X4_50);
-        this.params = new cv.aruco_DetectorParameters();
+        // Check if ArUco module is available
+        if (typeof cv.aruco_Dictionary !== 'undefined') {
+            this.dictionary = new cv.aruco_Dictionary(cv.DICT_4X4_50);
+            this.params = new cv.aruco_DetectorParameters();
+            this.hasAruco = true;
+            console.log("✓ ArUco module initialized");
+        } else {
+            console.warn("⚠ ArUco module not available in this OpenCV build");
+            console.warn("⚠ The Pro 4-Marker method requires ArUco support");
+            console.warn("⚠ Please use OpenCV.js with ArUco module enabled");
+        }
     }
 
     detect(video, srcMat, grayMat) {
+        if (!this.hasAruco) {
+            return null; // ArUco not available
+        }
+
         let corners = new cv.MatVector();
         let ids = new cv.Mat();
         cv.detectMarkers(grayMat, this.dictionary, corners, ids, this.params);
@@ -196,19 +218,49 @@ const App = {
     onCvLoaded: function() {
         console.log("OpenCV script file loaded successfully. Starting internal initialization check.");
         
+        let retries = 0;
+        const maxRetries = 50; // 5 seconds
+        
         const checkCvReady = () => {
-            // Check 1: Global cv object exists, Check 2: ArUco is available
-            if (typeof cv !== 'undefined' && cv.Mat && cv.aruco_Dictionary) {
-                // Enable button and update text
+            retries++;
+            
+            // Check if OpenCV core is ready
+            if (typeof cv !== 'undefined' && cv.Mat) {
+                // Check if ArUco module is available
+                const hasAruco = typeof cv.aruco_Dictionary !== 'undefined';
+                
+                const startBtn = document.getElementById('start-camera-btn');
+                
+                if (hasAruco) {
+                    // ArUco available - enable button
+                    if (startBtn) {
+                        startBtn.disabled = false;
+                        startBtn.textContent = 'Start Calibration';
+                    }
+                    document.getElementById('status-pill').textContent = "OpenCV Ready";
+                    console.log("✓ OpenCV Ready with ArUco support");
+                } else {
+                    // ArUco not available - show error
+                    if (startBtn) {
+                        startBtn.disabled = true;
+                        startBtn.textContent = 'ArUco Module Required';
+                        startBtn.style.background = '#e30613';
+                    }
+                    document.getElementById('status-pill').textContent = "ArUco Module Not Available";
+                    console.error("❌ ArUco module not found in OpenCV.js build");
+                    console.error("💡 The Pro 4-Marker method requires OpenCV.js compiled with ArUco support");
+                }
+            } else if (retries < maxRetries) {
+                setTimeout(checkCvReady, 100);
+            } else {
+                // Timeout
+                document.getElementById('status-pill').textContent = "OpenCV Failed to Load";
                 const startBtn = document.getElementById('start-camera-btn');
                 if (startBtn) {
-                    startBtn.disabled = false;
-                    startBtn.textContent = 'Start Calibration';
+                    startBtn.disabled = true;
+                    startBtn.textContent = 'Initialization Failed';
+                    startBtn.style.background = '#e30613';
                 }
-                document.getElementById('status-pill').textContent = "OpenCV Ready";
-                console.log("✓ OpenCV Ready");
-            } else {
-                setTimeout(checkCvReady, 100);
             }
         };
         checkCvReady();
