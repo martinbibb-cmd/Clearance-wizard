@@ -2,31 +2,11 @@
 
 An AR-based clearance checking tool for boilers, radiators, and other appliances using ArUco markers.
 
-## Pro 4-Marker Version
-
-This is the **Pro Mini-App** version featuring:
-- **Simplified workflow**: Single-button start with no configuration needed
-- **4-Marker support**: Uses ArUco markers with IDs 1-4 for multi-marker tracking
-- **Fixed 90mm markers**: Optimized for consistent marker size
-- **Worcester 4000 boiler**: Pre-configured for 724mm tall boiler (400x724x310mm)
-- **Direct pose estimation**: Uses basic pinhole camera math for fast tracking
-
-### ArUco Module Requirement
-
-⚠️ **Important**: This Pro version requires OpenCV.js compiled with ArUco module support. The standard OpenCV.js build does not include ArUco by default.
-
-To use this version:
-1. Download or build OpenCV.js with ArUco module enabled
-2. Replace the `opencv.js` file in this repository with the ArUco-enabled version
-3. Alternatively, use the [OpenCV.js builder tool](https://docs.opencv.org/4.x/d4/da1/tutorial_js_setup.html) to create a custom build
-
-If ArUco is not available, the app will display a clear error message on startup.
-
 ## Setup Instructions
 
 ### Quick Start
 
-The application includes a standard OpenCV.js file. For the Pro 4-Marker features, you'll need to replace it with an ArUco-enabled build.
+The application now includes OpenCV.js in the repository, so you can run it immediately without any additional downloads.
 
 ### Running the Application
 
@@ -51,11 +31,11 @@ http://localhost:8000
 ## Features
 
 - **Progressive Web App (PWA)**: Install on your device for offline access and app-like experience
-- **Pro 4-Marker System**: Simplified ArUco-based multi-marker tracking
-- **Worcester 4000 Focus**: Pre-configured for the popular 724mm tall boiler
-- **Fixed 90mm Markers**: Consistent marker size for reliable detection
-- **Simple Pinhole Math**: Fast pose estimation without complex calibration
-- Real-time camera tracking and 3D wireframe overlay
+- AR-based clearance visualization using ArUco markers
+- Support for multiple appliance types (boilers, radiators, cylinders, flues)
+- Custom marker and appliance sizing
+- Real-time camera tracking and overlay
+- **Direct gallery saving**: Capture images and save directly to your device's photo gallery
 
 ## Installing as a PWA
 
@@ -79,46 +59,44 @@ http://localhost:8000
 - **Home screen access**: Launch directly from your device
 - **Save to gallery**: Capture and share images directly to your photo gallery
 
-## Marker Requirements
+## Marker Detection
 
-This Pro version uses **ArUco markers** (DICT_4X4_50) for precise marker detection and identification.
+This application uses computer vision to detect square markers for AR tracking. You need to have a printed square marker (ideally black on white background) to use the app.
 
-**Creating ArUco Markers:**
+**How to create markers:**
 
-1. Visit [ArUco Marker Generator](https://chev.me/arucogen/)
-2. Select dictionary: **4x4 (50, 100, 250, 1000)**
-3. Generate markers with **IDs 1-4**
-4. Set marker size to **90mm**
-5. Print on white paper with a black printer
+1. **Print a simple square**: Any black square on white paper will work
+2. **Use QR codes**: QR codes work well as they're already square
+3. **Create a custom pattern**: Draw or print any high-contrast square shape
 
-**Marker Specifications:**
-- **Fixed size**: 90mm × 90mm
-- **Dictionary**: DICT_4X4_50
-- **IDs needed**: 1, 2, 3, and 4
-- **Print quality**: Use high-quality printer for sharp edges
+**Recommended marker sizes:**
+- 45mm - Default setting (small marker)
+- 53mm (credit card size) - Good for close-up work
+- 148mm (A5 square) - **Recommended for better tracking**
+- 160mm-190mm (A4 sizes) - **Best for distant measurements**
 
-**Why ArUco markers:**
-ArUco markers provide unique IDs and better pose estimation compared to generic squares. The Pro version uses these IDs to support multi-marker tracking and more accurate 3D positioning.
+**Why larger markers work better:**
+Larger markers (A5 or A4) provide significantly more stable tracking, especially when stepping back from the installation point. The increased pixel coverage gives the computer vision system more data to work with, reducing "jumping" or instability in the AR overlay at distance.
+
+Print the markers on white paper with a black printer for best results. The app detects the square shape using contour detection.
+
+## Capturing Images
+
+The app includes an image capture feature with smart saving:
+
+- **On mobile devices with Web Share API support**: Tap the 📷 button to capture the AR view. You can then choose to save the image to your gallery, share it, or cancel.
+- **On other devices**: The image will be downloaded automatically to your default downloads folder.
+
+The captured image includes both the camera feed and the AR overlay, showing the complete clearance visualization.
 
 ## Troubleshooting
 
-### "ArUco Module Not Available" Error
-
-If you see this error:
-
-1. The standard OpenCV.js does not include ArUco support
-2. You need to build or download OpenCV.js with ArUco module enabled
-3. See the [OpenCV.js documentation](https://docs.opencv.org/4.x/d4/da1/tutorial_js_setup.html) for building custom versions
-4. Replace `opencv.js` in this repository with your ArUco-enabled build
-
-### Other Common Issues
-
-If you see "Loading OpenCV..." or other initialization errors:
+If you see "Loading OpenCV..." or initialization errors:
 
 1. Make sure you're running the app through a local web server (not opening the HTML file directly)
 2. Check your browser console (F12) for detailed error messages
 3. Ensure your browser supports WebRTC and camera access
-4. Ensure `opencv.js` is present in the project root directory
+4. Ensure `opencv.js` is present in the project root directory (it should be included in the repository)
 
 ## Browser Compatibility
 
