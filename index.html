@@ -488,12 +488,9 @@ class VisionSystem {
         const x = (centroidX - vw/2) * (Math.abs(z)/focal);
         const y = (centroidY - vh/2) * (Math.abs(z)/focal) * -1;
 
-        // For 4-marker mode: if we have all 4 corners, calculate rotation from rectangle
+        // Calculate rotation from first detected marker
         let rotation = null;
-        if (mode === '4-marker' && detectedIds.includes(1) && detectedIds.includes(2)) {
-            // Use markers 1 and 2 (top-left and top-right) to calculate rotation
-            rotation = this._getRotationFromCorners(markers[1].corners);
-        } else if (detectedIds.length > 0) {
+        if (detectedIds.length > 0) {
             // Use first detected marker for rotation
             rotation = this._getRotationFromCorners(markers[detectedIds[0]].corners);
         }
