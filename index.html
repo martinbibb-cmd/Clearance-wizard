@@ -950,8 +950,7 @@ const App = {
                 
                 try {
                     // Check if file sharing is supported
-                    // Some browsers support share but not canShare method
-                    if (typeof navigator.canShare === 'function') {
+                    if (navigator.canShare) {
                         canShareFiles = navigator.canShare({ files: [file] });
                     } else {
                         // Older implementations without canShare - try sharing anyway
