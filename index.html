@@ -86,6 +86,7 @@
 
     <video id="camera-layer" autoplay playsinline muted></video>
     <canvas id="ar-layer"></canvas>
+    <canvas id="marker-feedback-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none;"></canvas>
     <div id="touch-pad"></div>
 
     <div id="ui-layer">
@@ -100,9 +101,15 @@
             <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
                 <h2 style="margin: 0 0 10px 0; font-size: 1rem; color: var(--wb-blue);">📋 How to Use</h2>
                 <ol style="margin: 0; padding-left: 20px; color: #444; font-size: 0.85rem; line-height: 1.6;">
-                    <li><strong>Print a marker:</strong> Print an ArUco marker or high-contrast square (recommended 190mm A4 square).</li>
-                    <li><strong>Select settings:</strong> Choose your marker size, appliance category, and model.</li>
-                    <li><strong>Start camera:</strong> Point your device at the marker.</li>
+                    <li><strong>Choose detection mode:</strong>
+                        <ul style="margin: 5px 0; padding-left: 20px;">
+                            <li><strong>Single Marker:</strong> Print one ArUco marker (60mm calibration card)</li>
+                            <li><strong>4-Marker Boiler Overlay:</strong> Place markers 1-4 at boiler corners (90mm each)</li>
+                            <li><strong>5-Marker Window + Flue:</strong> Place 1-4 at window corners, 5 at flue position (90mm each)</li>
+                        </ul>
+                    </li>
+                    <li><strong>Select settings:</strong> Choose your detection mode, marker size, appliance category, and model.</li>
+                    <li><strong>Start camera:</strong> Point your device at the marker(s).</li>
                     <li><strong>View in 3D:</strong> The AR clearance volume will appear with parallax effects as you move.</li>
                     <li><strong>Lock view:</strong> When satisfied, lock the view and capture the image.</li>
                     <li><strong>Review:</strong> Check the clearance requirements are met in 3D space.</li>
@@ -118,8 +125,8 @@
             <div style="background: #f0f0f0; padding: 12px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #666;">
                 <p style="margin: 0; font-size: 0.75rem; color: #666;">
                     <strong>📍 ArUco Markers:</strong> For best results, use ArUco markers (DICT_4X4_50). Download from
-                    <a href="https://chev.me/arucogen/" target="_blank" style="color: var(--wb-blue);">arucogen</a>
-                    or use any high-contrast square pattern.
+                    <a href="https://chev.me/arucogen/" target="_blank" style="color: var(--wb-blue);">arucogen</a>.
+                    For multi-marker modes, print markers with IDs 1, 2, 3, 4 (and 5 for Window + Flue mode).
                 </p>
             </div>
 
@@ -144,7 +151,23 @@
                 <input type="number" id="custom-size-input" min="10" max="500" step="1" placeholder="Enter size in mm" aria-label="Custom marker size in millimeters">
             </div>
 
-            <label>2. Category</label>
+            <label>2. Detection Mode</label>
+            <select id="input-detection-mode" onchange="App.onDetectionModeChange()">
+                <option value="single">Single Marker (Calibration Card)</option>
+                <option value="4-marker">4-Marker (Boiler Overlay)</option>
+                <option value="5-marker">5-Marker (Window + Flue)</option>
+            </select>
+
+            <div id="multi-marker-size-container" class="hidden">
+                <label>Multi-Marker Size (mm)</label>
+                <input type="number" id="multi-marker-size-input" min="10" max="500" step="1" value="90" placeholder="Enter marker size in mm" aria-label="Multi-marker size in millimeters">
+            </div>
+
+            <div id="marker-status-display" class="hidden" style="background: #f0f7ff; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
+                <p id="marker-status-text" style="margin: 0; font-size: 0.85rem; color: #444;"></p>
+            </div>
+
+            <label>3. Category</label>
             <select id="input-category" onchange="App.updateModels()">
                 <option value="boiler">🔥 Boilers</option>
                 <option value="flue">⭕ Flues</option>
@@ -152,7 +175,7 @@
                 <option value="cylinder">🛢️ Cylinders</option>
             </select>
 
-            <label>3. Select Model</label>
+            <label>4. Select Model</label>
             <select id="input-type" onchange="App.onModelChange()">
             </select>
 
@@ -279,7 +302,7 @@ class VisionSystem {
         this.ready = true;
     }
 
-    findMarker(video, markerSize) {
+    findMarker(video, markerSize, detectionMode = 'single') {
         if(!this.ready) return null;
         const w = Math.floor(video.videoWidth * this.scale);
         const h = Math.floor(video.videoHeight * this.scale);
@@ -301,7 +324,11 @@ class VisionSystem {
         cv.cvtColor(this.src, this.gray, cv.COLOR_RGBA2GRAY);
 
         if (this.useAruco) {
-            return this._findArucoMarker(video, markerSize);
+            if (detectionMode === 'single') {
+                return this._findArucoMarker(video, markerSize);
+            } else {
+                return this._findMultipleArucoMarkers(video, markerSize, detectionMode);
+            }
         } else {
             return this._findSquareMarker(video, markerSize, w, h);
         }
@@ -338,6 +365,153 @@ class VisionSystem {
             console.error("ArUco detection error:", e);
         }
         return null;
+    }
+
+    _findMultipleArucoMarkers(video, markerSize, detectionMode) {
+        try {
+            const markerCorners = new cv.MatVector();
+            const markerIds = new cv.Mat();
+            const rejectedCandidates = new cv.MatVector();
+
+            // Detect ArUco markers
+            cv.detectMarkers(this.gray, this.dictionary, markerCorners, markerIds, this.detectorParams, rejectedCandidates);
+
+            const detectedMarkers = {};
+            const detectedIds = [];
+            const missingIds = [];
+
+            // Expected marker IDs based on detection mode
+            const expectedIds = detectionMode === '4-marker' ? [1, 2, 3, 4] : [1, 2, 3, 4, 5];
+
+            // Parse detected markers
+            if (markerIds.rows > 0) {
+                for (let i = 0; i < markerIds.rows; i++) {
+                    const id = markerIds.data32S[i];
+                    if (expectedIds.includes(id)) {
+                        const corners = markerCorners.get(i);
+                        detectedMarkers[id] = {
+                            id: id,
+                            corners: corners,
+                            center: this._getMarkerCenter(corners, this.scale)
+                        };
+                        detectedIds.push(id);
+                    }
+                }
+            }
+
+            // Determine missing markers
+            for (let id of expectedIds) {
+                if (!detectedIds.includes(id)) {
+                    missingIds.push(id);
+                }
+            }
+
+            // Calculate pose based on detected markers
+            let pose = null;
+            if (detectionMode === '4-marker' && detectedIds.length >= 2) {
+                // Need at least 2 markers for 4-marker mode
+                pose = this._calculateMultiMarkerPose(detectedMarkers, detectedIds, video, markerSize, '4-marker');
+            } else if (detectionMode === '5-marker' && detectedIds.length >= 2) {
+                // Need at least 2 markers for 5-marker mode
+                pose = this._calculateMultiMarkerPose(detectedMarkers, detectedIds, video, markerSize, '5-marker');
+            }
+
+            if (pose) {
+                pose.detectedIds = detectedIds;
+                pose.missingIds = missingIds;
+                pose.detectedMarkers = detectedMarkers;
+                pose.allMarkersFound = missingIds.length === 0;
+            }
+
+            markerCorners.delete();
+            markerIds.delete();
+            rejectedCandidates.delete();
+
+            return pose;
+        } catch(e) {
+            console.error("Multi-marker ArUco detection error:", e);
+        }
+        return null;
+    }
+
+    _getMarkerCenter(corners, scale) {
+        const c = [];
+        for(let i = 0; i < 4; i++) {
+            c.push({
+                x: corners.data32F[i * 2] / scale,
+                y: corners.data32F[i * 2 + 1] / scale
+            });
+        }
+        const cx = (c[0].x + c[1].x + c[2].x + c[3].x) / 4;
+        const cy = (c[0].y + c[1].y + c[2].y + c[3].y) / 4;
+        return { x: cx, y: cy };
+    }
+
+    _calculateMultiMarkerPose(markers, detectedIds, video, markerSize, mode) {
+        // Calculate average scale from all detected markers
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+
+        // Calculate average marker width in pixels and distances between markers
+        let totalScale = 0;
+        let scaleCount = 0;
+
+        // For each detected marker, calculate its apparent size
+        for (let id of detectedIds) {
+            const corners = markers[id].corners;
+            const c = [];
+            for(let i = 0; i < 4; i++) {
+                c.push({
+                    x: corners.data32F[i * 2] / this.scale,
+                    y: corners.data32F[i * 2 + 1] / this.scale
+                });
+            }
+
+            // Calculate marker width in pixels
+            const wPx = (
+                Math.hypot(c[0].x-c[1].x, c[0].y-c[1].y) +
+                Math.hypot(c[1].x-c[2].x, c[1].y-c[2].y) +
+                Math.hypot(c[2].x-c[3].x, c[2].y-c[3].y) +
+                Math.hypot(c[3].x-c[0].x, c[3].y-c[0].y)
+            ) / 4;
+
+            totalScale += wPx / markerSize;
+            scaleCount++;
+        }
+
+        // Average scale (pixels per mm)
+        const avgScale = totalScale / scaleCount;
+
+        // Calculate centroid of all detected markers
+        let centroidX = 0;
+        let centroidY = 0;
+        for (let id of detectedIds) {
+            centroidX += markers[id].center.x;
+            centroidY += markers[id].center.y;
+        }
+        centroidX /= detectedIds.length;
+        centroidY /= detectedIds.length;
+
+        // Calculate depth using pinhole camera model
+        const vFovRad = 60 * Math.PI / 180;
+        const focal = (vh / 2) / Math.tan(vFovRad / 2);
+        const z = -(markerSize * focal) / (avgScale * markerSize);
+
+        // Convert centroid to 3D position
+        const x = (centroidX - vw/2) * (Math.abs(z)/focal);
+        const y = (centroidY - vh/2) * (Math.abs(z)/focal) * -1;
+
+        // For 4-marker mode: if we have all 4 corners, calculate rotation from rectangle
+        let rotation = null;
+        if (mode === '4-marker' && detectedIds.includes(1) && detectedIds.includes(2)) {
+            // Use markers 1 and 2 (top-left and top-right) to calculate rotation
+            rotation = this._getRotationFromCorners(markers[1].corners);
+        } else if (detectedIds.length > 0) {
+            // Use first detected marker for rotation
+            rotation = this._getRotationFromCorners(markers[detectedIds[0]].corners);
+        }
+
+        return { x, y, z, rotation };
     }
 
     _findSquareMarker(video, markerSize, w, h) {
@@ -628,6 +802,8 @@ class GraphicsEngine {
 // ==========================================
 const App = {
     markerSize: 190,
+    detectionMode: 'single',
+    multiMarkerSize: 90,
     vision: new VisionSystem(),
     graphics: null,
     locked: false,
@@ -701,11 +877,30 @@ const App = {
     onSizeChange: function() {
         const sizeSelect = document.getElementById('input-size');
         const customContainer = document.getElementById('custom-size-container');
-        
+
         if (sizeSelect.value === 'custom') {
             customContainer.classList.remove('hidden');
         } else {
             customContainer.classList.add('hidden');
+        }
+    },
+
+    // Handle detection mode selection change
+    onDetectionModeChange: function() {
+        const modeSelect = document.getElementById('input-detection-mode');
+        const multiMarkerContainer = document.getElementById('multi-marker-size-container');
+        const sizeSelect = document.getElementById('input-size');
+
+        this.detectionMode = modeSelect.value;
+
+        if (this.detectionMode === 'single') {
+            // Show single marker size selector, hide multi-marker size
+            multiMarkerContainer.classList.add('hidden');
+            sizeSelect.disabled = false;
+        } else {
+            // Show multi-marker size input, optionally disable single marker size
+            multiMarkerContainer.classList.remove('hidden');
+            // Keep single marker size enabled but inform user
         }
     },
 
@@ -756,19 +951,34 @@ const App = {
             alert("OpenCV is still loading. Please wait a moment.");
             return;
         }
-        
-        const sizeSelect = document.getElementById('input-size').value;
-        
-        // Get marker size from either preset or custom input
-        if (sizeSelect === 'custom') {
-            const customSize = parseInt(document.getElementById('custom-size-input').value, 10);
-            if (isNaN(customSize) || customSize < 10 || customSize > 500) {
-                alert('Please enter a valid marker size between 10 and 500 millimeters (whole numbers only)');
+
+        // Get detection mode
+        this.detectionMode = document.getElementById('input-detection-mode').value;
+
+        // Get marker size based on detection mode
+        if (this.detectionMode === 'single') {
+            const sizeSelect = document.getElementById('input-size').value;
+
+            // Get marker size from either preset or custom input
+            if (sizeSelect === 'custom') {
+                const customSize = parseInt(document.getElementById('custom-size-input').value, 10);
+                if (isNaN(customSize) || customSize < 10 || customSize > 500) {
+                    alert('Please enter a valid marker size between 10 and 500 millimeters (whole numbers only)');
+                    return;
+                }
+                this.markerSize = customSize;
+            } else {
+                this.markerSize = parseInt(sizeSelect, 10);
+            }
+        } else {
+            // Multi-marker mode: use multi-marker size input
+            const multiSize = parseInt(document.getElementById('multi-marker-size-input').value, 10);
+            if (isNaN(multiSize) || multiSize < 10 || multiSize > 500) {
+                alert('Please enter a valid multi-marker size between 10 and 500 millimeters');
                 return;
             }
-            this.markerSize = customSize;
-        } else {
-            this.markerSize = parseInt(sizeSelect, 10);
+            this.multiMarkerSize = multiSize;
+            this.markerSize = multiSize; // Use multi-marker size for calculations
         }
         
         const index = parseInt(document.getElementById('input-type').value, 10);
@@ -825,7 +1035,7 @@ const App = {
         this.graphics.render();
 
         if(!this.locked) {
-            const pose = this.vision.findMarker(video, this.markerSize);
+            const pose = this.vision.findMarker(video, this.markerSize, this.detectionMode);
             if(pose) {
                 // Update position with smooth interpolation
                 const t = this.graphics.root.position;
@@ -841,13 +1051,115 @@ const App = {
                     r.z += (pose.rotation.z - r.z) * 0.15;
                 }
 
-                document.getElementById('status-pill').textContent = "✓ Tracking";
-                document.getElementById('status-pill').className = "locked";
+                // Update status based on detection mode
+                if (this.detectionMode === 'single') {
+                    document.getElementById('status-pill').textContent = "✓ Tracking";
+                    document.getElementById('status-pill').className = "locked";
+                } else {
+                    // Multi-marker mode: show detected/missing markers
+                    const statusText = pose.allMarkersFound
+                        ? `✓ All Markers Found (${pose.detectedIds.join(', ')})`
+                        : `Found: ${pose.detectedIds.join(', ')} - Missing: ${pose.missingIds.join(', ')}`;
+                    document.getElementById('status-pill').textContent = statusText;
+                    document.getElementById('status-pill').className = pose.allMarkersFound ? "locked" : "";
+
+                    // Draw marker feedback on canvas
+                    this.drawMarkerFeedback(pose);
+                }
             } else {
                 document.getElementById('status-pill').textContent = "🔍 Looking...";
                 document.getElementById('status-pill').className = "";
+
+                // Clear marker feedback
+                if (this.detectionMode !== 'single') {
+                    this.clearMarkerFeedback();
+                }
             }
         }
+    },
+
+    drawMarkerFeedback: function(pose) {
+        const canvas = document.getElementById('marker-feedback-layer');
+        const video = document.getElementById('camera-layer');
+
+        if (!canvas || !pose.detectedMarkers) return;
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Calculate scaling factors to match video display
+        const videoAspect = video.videoWidth / video.videoHeight;
+        const canvasAspect = canvas.width / canvas.height;
+
+        let scaleX, scaleY, offsetX, offsetY;
+
+        if (videoAspect > canvasAspect) {
+            // Video is wider - covers height, cropped horizontally
+            scaleY = canvas.height / video.videoHeight;
+            scaleX = scaleY;
+            offsetX = (canvas.width - (video.videoWidth * scaleX)) / 2;
+            offsetY = 0;
+        } else {
+            // Video is taller - covers width, cropped vertically
+            scaleX = canvas.width / video.videoWidth;
+            scaleY = scaleX;
+            offsetX = 0;
+            offsetY = (canvas.height - (video.videoHeight * scaleY)) / 2;
+        }
+
+        // Draw detected markers
+        for (let id in pose.detectedMarkers) {
+            const marker = pose.detectedMarkers[id];
+            const center = marker.center;
+
+            // Transform coordinates
+            const x = center.x * scaleX + offsetX;
+            const y = center.y * scaleY + offsetY;
+
+            // Draw marker indicator (green circle with ID)
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+            ctx.beginPath();
+            ctx.arc(x, y, 30, 0, 2 * Math.PI);
+            ctx.fill();
+
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Draw marker ID
+            ctx.fillStyle = '#00ff00';
+            ctx.font = 'bold 24px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(id, x, y);
+
+            // Draw marker corners
+            const corners = marker.corners;
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let i = 0; i < 4; i++) {
+                const cx = corners.data32F[i * 2] / this.vision.scale * scaleX + offsetX;
+                const cy = corners.data32F[i * 2 + 1] / this.vision.scale * scaleY + offsetY;
+                if (i === 0) {
+                    ctx.moveTo(cx, cy);
+                } else {
+                    ctx.lineTo(cx, cy);
+                }
+            }
+            ctx.closePath();
+            ctx.stroke();
+        }
+    },
+
+    clearMarkerFeedback: function() {
+        const canvas = document.getElementById('marker-feedback-layer');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
     },
 
     setupTouch: function() {
