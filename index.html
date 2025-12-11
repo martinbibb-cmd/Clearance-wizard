@@ -957,7 +957,7 @@ const App = {
                 // Use canShare if available, otherwise attempt to share and handle errors
                 let canAttemptShare = true;
                 
-                if (navigator.canShare && typeof navigator.canShare === 'function') {
+                if (navigator.canShare) {
                     try {
                         canAttemptShare = navigator.canShare({ files: [file] });
                     } catch (e) {

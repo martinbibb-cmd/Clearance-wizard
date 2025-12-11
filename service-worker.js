@@ -78,7 +78,7 @@ self.addEventListener('fetch', (event) => {
         // Otherwise fetch from network
         return fetch(event.request).then((response) => {
           // Cache successful responses (2xx) and redirects (3xx), but not errors (4xx, 5xx)
-          if (!response || response.status >= 400) {
+          if (response.status >= 400) {
             return response;
           }
 
