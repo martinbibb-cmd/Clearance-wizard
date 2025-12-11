@@ -944,24 +944,21 @@ const App = {
             const file = new File([blob], filename, { type: 'image/png' });
 
             // Try Web Share API first (allows saving to gallery on mobile)
-            // Check if navigator.share exists before attempting to use it
             if (navigator.share) {
-                let canShareFiles = false;
+                // Check if file sharing is supported
+                // Use canShare if available, otherwise attempt to share and handle errors
+                let canAttemptShare = true;
                 
-                try {
-                    // Check if file sharing is supported
-                    if (navigator.canShare) {
-                        canShareFiles = navigator.canShare({ files: [file] });
-                    } else {
-                        // Older implementations without canShare - try sharing anyway
-                        canShareFiles = true;
+                if (navigator.canShare) {
+                    try {
+                        canAttemptShare = navigator.canShare({ files: [file] });
+                    } catch (e) {
+                        console.log('canShare check failed:', e);
+                        canAttemptShare = false;
                     }
-                } catch (e) {
-                    console.log('canShare check failed:', e);
-                    canShareFiles = false;
                 }
                 
-                if (canShareFiles) {
+                if (canAttemptShare) {
                     try {
                         await navigator.share({
                             files: [file],
@@ -971,8 +968,12 @@ const App = {
                         console.log('✓ Image shared successfully');
                         return;
                     } catch (error) {
-                        // User cancelled or error occurred, fall back to download
-                        if (error.name !== 'AbortError') {
+                        // User cancelled, file sharing not supported, or other error
+                        // Fall back to download for all errors except user cancellation
+                        if (error.name === 'AbortError') {
+                            console.log('User cancelled share');
+                            return; // Don't download if user explicitly cancelled
+                        } else {
                             console.log('Share failed, falling back to download:', error);
                         }
                     }

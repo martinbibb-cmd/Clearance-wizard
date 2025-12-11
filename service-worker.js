@@ -77,8 +77,8 @@ self.addEventListener('fetch', (event) => {
         
         // Otherwise fetch from network
         return fetch(event.request).then((response) => {
-          // Don't cache if not a valid response (allow 200-299 status codes)
-          if (!response || response.status < 200 || response.status >= 300) {
+          // Don't cache if not a valid response (exclude 4xx and 5xx errors)
+          if (!response || response.status >= 400) {
             return response;
           }
 
