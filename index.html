@@ -189,7 +189,8 @@ class ProGraphics {
     constructor(canvas) {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
-        this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+        // Note: preserveDrawingBuffer enables canvas capture for future screenshot functionality
+        this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, preserveDrawingBuffer: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.root = new THREE.Group();
         this.scene.add(this.root);
@@ -214,6 +215,9 @@ class ProGraphics {
 const App = {
     vision: new ProVision(),
     graphics: null,
+    processingCanvas: null,
+    src: null,
+    gray: null,
     
     onCvLoaded: function() {
         console.log("OpenCV script file loaded successfully. Starting internal initialization check.");
@@ -288,6 +292,11 @@ const App = {
         const canvas = document.getElementById('ar-layer');
         this.graphics = new ProGraphics(canvas);
 
+        // Setup processing canvas for reuse
+        this.processingCanvas = document.createElement('canvas');
+        this.processingCanvas.width = 640;
+        this.processingCanvas.height = 480;
+
         this.vision.init();
         this.run();
     },
@@ -297,17 +306,21 @@ const App = {
         const video = document.getElementById('camera-layer');
         if (video.readyState !== 4) return;
 
-        // Process frame
-        const canvas = document.createElement('canvas');
-        canvas.width = 640; canvas.height = 480;
-        const ctx = canvas.getContext('2d');
+        // Process frame - reuse canvas and Mat objects for efficiency
+        const ctx = this.processingCanvas.getContext('2d');
         ctx.drawImage(video, 0, 0, 640, 480);
         
-        let src = cv.imread(canvas);
-        let gray = new cv.Mat();
-        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+        // Initialize or reuse Mat objects
+        if (!this.src) {
+            this.src = cv.imread(this.processingCanvas);
+            this.gray = new cv.Mat();
+        } else {
+            cv.imread(this.processingCanvas, this.src);
+        }
+        
+        cv.cvtColor(this.src, this.gray, cv.COLOR_RGBA2GRAY);
 
-        const pose = this.vision.detect(video, src, gray);
+        const pose = this.vision.detect(video, this.src, this.gray);
         if (pose) {
             document.getElementById('status-pill').textContent = "ID " + pose.id + " Detected - Scaling to 90mm";
             this.graphics.root.position.set(pose.x, pose.y, pose.z);
@@ -316,7 +329,6 @@ const App = {
         }
 
         this.graphics.render();
-        src.delete(); gray.delete();
     }
 };
 
