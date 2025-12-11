@@ -126,7 +126,7 @@
                 <p style="margin: 0; font-size: 0.75rem; color: #666;">
                     <strong>📍 ArUco Markers:</strong> For best results, use ArUco markers (DICT_4X4_50). Download from
                     <a href="https://chev.me/arucogen/" target="_blank" style="color: var(--wb-blue);">arucogen</a>.
-                    For multi-marker modes, print markers with IDs 1, 2, 3, 4 (and 5 for Window + Flue mode).
+                    For multi-marker modes, print 4 or 5 markers with any IDs - the app will detect them automatically.
                 </p>
             </div>
 
@@ -378,49 +378,36 @@ class VisionSystem {
 
             const detectedMarkers = {};
             const detectedIds = [];
-            const missingIds = [];
 
-            // Expected marker IDs based on detection mode
-            const expectedIds = detectionMode === '4-marker' ? [1, 2, 3, 4] : [1, 2, 3, 4, 5];
+            // Required number of markers based on detection mode
+            const requiredCount = detectionMode === '4-marker' ? 4 : 5;
 
-            // Parse detected markers
+            // Parse ALL detected markers (accept any IDs)
             if (markerIds.rows > 0) {
                 for (let i = 0; i < markerIds.rows; i++) {
                     const id = markerIds.data32S[i];
-                    if (expectedIds.includes(id)) {
-                        const corners = markerCorners.get(i);
-                        detectedMarkers[id] = {
-                            id: id,
-                            corners: corners,
-                            center: this._getMarkerCenter(corners, this.scale)
-                        };
-                        detectedIds.push(id);
-                    }
-                }
-            }
-
-            // Determine missing markers
-            for (let id of expectedIds) {
-                if (!detectedIds.includes(id)) {
-                    missingIds.push(id);
+                    const corners = markerCorners.get(i);
+                    detectedMarkers[id] = {
+                        id: id,
+                        corners: corners,
+                        center: this._getMarkerCenter(corners, this.scale)
+                    };
+                    detectedIds.push(id);
                 }
             }
 
             // Calculate pose based on detected markers
             let pose = null;
-            if (detectionMode === '4-marker' && detectedIds.length >= 2) {
-                // Need at least 2 markers for 4-marker mode
-                pose = this._calculateMultiMarkerPose(detectedMarkers, detectedIds, video, markerSize, '4-marker');
-            } else if (detectionMode === '5-marker' && detectedIds.length >= 2) {
-                // Need at least 2 markers for 5-marker mode
-                pose = this._calculateMultiMarkerPose(detectedMarkers, detectedIds, video, markerSize, '5-marker');
+            if (detectedIds.length >= 2) {
+                // Need at least 2 markers for multi-marker mode
+                pose = this._calculateMultiMarkerPose(detectedMarkers, detectedIds, video, markerSize, detectionMode);
             }
 
             if (pose) {
                 pose.detectedIds = detectedIds;
-                pose.missingIds = missingIds;
                 pose.detectedMarkers = detectedMarkers;
-                pose.allMarkersFound = missingIds.length === 0;
+                pose.requiredCount = requiredCount;
+                pose.allMarkersFound = detectedIds.length >= requiredCount;
             }
 
             markerCorners.delete();
@@ -1056,10 +1043,12 @@ const App = {
                     document.getElementById('status-pill').textContent = "✓ Tracking";
                     document.getElementById('status-pill').className = "locked";
                 } else {
-                    // Multi-marker mode: show detected/missing markers
+                    // Multi-marker mode: show detected markers count
+                    const count = pose.detectedIds.length;
+                    const required = pose.requiredCount;
                     const statusText = pose.allMarkersFound
-                        ? `✓ All Markers Found (${pose.detectedIds.join(', ')})`
-                        : `Found: ${pose.detectedIds.join(', ')} - Missing: ${pose.missingIds.join(', ')}`;
+                        ? `✓ ${count} Markers (IDs: ${pose.detectedIds.join(', ')})`
+                        : `Found ${count}/${required} (IDs: ${pose.detectedIds.join(', ')})`;
                     document.getElementById('status-pill').textContent = statusText;
                     document.getElementById('status-pill').className = pose.allMarkersFound ? "locked" : "";
 
