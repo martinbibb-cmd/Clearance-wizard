@@ -41,12 +41,12 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+        cacheNames
+          .filter(cacheName => cacheName !== CACHE_NAME)
+          .map((cacheName) => {
             console.log('Service Worker: Deleting old cache:', cacheName);
             return caches.delete(cacheName);
-          }
-        })
+          })
       );
     }).then(() => self.clients.claim())
   );
@@ -77,10 +77,12 @@ self.addEventListener('fetch', (event) => {
           // Clone the response as it can only be consumed once
           const responseToCache = response.clone();
 
-          // Cache successful GET requests
+          // Cache successful GET requests (async, doesn't block response)
           if (event.request.method === 'GET') {
             caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
+              return cache.put(event.request, responseToCache);
+            }).catch((err) => {
+              console.log('Failed to cache response:', err);
             });
           }
 
