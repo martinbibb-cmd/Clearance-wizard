@@ -186,6 +186,9 @@
             <select id="input-type" onchange="App.onModelChange()">
             </select>
 
+            <label>5. Manual Depth Offset (mm)</label>
+            <input type="number" id="manual-depth-offset" min="-1000" max="1000" step="10" value="0" placeholder="Adjust AR depth (+/- mm)" aria-label="Manual depth adjustment for AR model in millimeters">
+
             <div id="custom-radiator-container" class="hidden">
                 <label>Radiator Width (mm)</label>
                 <input type="number" id="custom-radiator-width" min="100" max="3000" step="1" value="1000" placeholder="Enter width in mm" aria-label="Custom radiator width in millimeters">
@@ -204,6 +207,7 @@
         </div>
 
         <div id="result-panel" class="control-bar interactive hidden">
+            <button class="btn-round" onclick="App.unlockView()" aria-label="Unlock View / Reset Tracking" title="Unlock AR View and Re-enable Tracking">🔓</button>
             <button class="btn-round" style="background: var(--wb-blue); color: white;" onclick="App.captureImage()" aria-label="Capture AR view" title="Capture current AR view as image">📷</button>
             <button class="primary" style="max-width:200px;" onclick="App.startAgain()">Start Again</button>
         </div>
@@ -1036,6 +1040,10 @@ const App = {
             return;
         }
 
+        // Get manual depth offset
+        const depthOffset = parseInt(document.getElementById('manual-depth-offset').value, 10);
+        this.manualDepthOffset = isNaN(depthOffset) ? 0 : depthOffset;
+
         // Get detection mode
         this.detectionMode = document.getElementById('input-detection-mode').value;
 
@@ -1123,10 +1131,13 @@ const App = {
             if(pose) {
                 // Update position with smooth interpolation (only if not partial detection)
                 if (!pose.partialDetection) {
+                    // Apply manual depth offset to z position
+                    const targetZ = pose.z - this.manualDepthOffset;
+
                     const t = this.graphics.root.position;
                     t.x += (pose.x - t.x) * 0.2;
                     t.y += (pose.y - t.y) * 0.2;
-                    t.z += (pose.z - t.z) * 0.2;
+                    t.z += (targetZ - t.z) * 0.2;
 
                     // Apply parallax rotation if available (from ArUco detection)
                     if(pose.rotation && this.graphics.parallaxEnabled) {
@@ -1272,6 +1283,16 @@ const App = {
         document.getElementById('camera-layer').pause();
         document.getElementById('controls-panel').classList.add('hidden');
         document.getElementById('result-panel').classList.remove('hidden');
+    },
+
+    unlockView: function() {
+        this.locked = false;
+        document.getElementById('camera-layer').play();
+        document.getElementById('controls-panel').classList.remove('hidden');
+        document.getElementById('result-panel').classList.add('hidden');
+        document.getElementById('status-pill').textContent = "🔍 Point at Marker...";
+        document.getElementById('status-pill').className = "";
+        this.clearMarkerFeedback();
     },
 
     resetObject: function() { this.graphics.stencil.position.set(150,0,0); },
