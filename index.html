@@ -3,12 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta name="theme-color" content="#005eb8">
     <meta name="description" content="AR Clearance Checker for Heating Appliances">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Clearance Genie">
-    <link rel="manifest" href="./manifest.json">
+    <link rel="manifest" href="./manifest.json?v=2.0.0">
     <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./icon-192.png">
     <title>Clearance Genie: Final</title>
@@ -1369,13 +1372,36 @@ const App = {
 // ==========================================
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js')
+        navigator.serviceWorker.register('./service-worker.js?v=2.0.0')
             .then((registration) => {
                 console.log('✓ Service Worker registered successfully:', registration.scope);
+
+                // Force update check on page load
+                registration.update();
+
+                // Listen for updates and reload when a new service worker is activated
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    console.log('New Service Worker version found, installing...');
+
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'activated') {
+                            console.log('New Service Worker activated, reloading page...');
+                            // Reload the page to get the latest version
+                            window.location.reload();
+                        }
+                    });
+                });
             })
             .catch((error) => {
                 console.log('❌ Service Worker registration failed:', error);
             });
+
+        // Listen for controller change (when new service worker takes over)
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            console.log('Service Worker controller changed, reloading...');
+            window.location.reload();
+        });
     });
 }
 </script>
