@@ -1,0 +1,20 @@
+# Cloudflare Worker Configuration
+# Deploy with: npx wrangler deploy
+
+name = "clearance-wizard-ai"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Environment variables (set via Cloudflare dashboard or CLI)
+# wrangler secret put GEMINI_API_KEY
+# wrangler secret put OPENAI_API_KEY
+# wrangler secret put ANTHROPIC_API_KEY
+
+[env.production]
+name = "clearance-wizard-ai"
+routes = [
+  { pattern = "clearance.martinbibb.workers.dev", custom_domain = true }
+]
+
+# Increase memory and CPU limits for image processing
+limits = { cpu_ms = 50000 }
