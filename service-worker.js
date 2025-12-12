@@ -1,5 +1,29 @@
+// ==========================================
 // Service Worker for Clearance Genie PWA
-const CACHE_NAME = 'clearance-genie-v1';
+// ==========================================
+//
+// MANUAL CACHE BUSTER INSTRUCTIONS:
+// ==================================
+// To force all users to update to the latest version:
+//
+// 1. Increment the CACHE_VERSION number below (e.g., '2.0.0' → '2.0.1')
+// 2. Update the same version in index.html:
+//    - Line ~11: manifest.json?v=X.X.X
+//    - Line ~1372: service-worker.js?v=X.X.X
+// 3. Deploy the updated files
+//
+// How it works:
+// - When CACHE_VERSION changes, old caches are automatically deleted
+// - Users will be forced to reload and get the latest version
+// - The page will automatically reload when the new service worker activates
+//
+// Version History:
+// - v2.0.0: Added manual cache buster system
+// - v1.0.0: Initial release
+// ==========================================
+
+const CACHE_VERSION = '2.0.0';
+const CACHE_NAME = `clearance-genie-v${CACHE_VERSION}`;
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -11,7 +35,7 @@ const ASSETS_TO_CACHE = [
 
 // Install event - cache assets
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing...');
+  console.log(`Service Worker: Installing version ${CACHE_VERSION}...`);
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -25,7 +49,7 @@ self.addEventListener('install', (event) => {
             // If atomic caching fails (e.g., CORS issues), cache individually
             console.log('Atomic caching failed, trying individual caching:', err);
             return Promise.allSettled(
-              ASSETS_TO_CACHE.map(url => 
+              ASSETS_TO_CACHE.map(url =>
                 cache.add(url)
                   .then(() => {
                     console.log(`Cached: ${url}`);
@@ -39,24 +63,32 @@ self.addEventListener('install', (event) => {
             );
           });
       })
-      .then(() => self.skipWaiting())
+      .then(() => {
+        console.log(`Service Worker: Skipping waiting for version ${CACHE_VERSION}`);
+        return self.skipWaiting();
+      })
   );
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activating...');
+  console.log(`Service Worker: Activating version ${CACHE_VERSION}...`);
   event.waitUntil(
     caches.keys().then((cacheNames) => {
+      const oldCaches = cacheNames.filter(cacheName => cacheName !== CACHE_NAME);
+      if (oldCaches.length > 0) {
+        console.log(`Service Worker: Deleting ${oldCaches.length} old cache(s):`, oldCaches);
+      }
       return Promise.all(
-        cacheNames
-          .filter(cacheName => cacheName !== CACHE_NAME)
-          .map((cacheName) => {
-            console.log('Service Worker: Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          })
+        oldCaches.map((cacheName) => {
+          console.log(`Service Worker: Deleting cache: ${cacheName}`);
+          return caches.delete(cacheName);
+        })
       );
-    }).then(() => self.clients.claim())
+    }).then(() => {
+      console.log(`Service Worker: Version ${CACHE_VERSION} now active and controlling all clients`);
+      return self.clients.claim();
+    })
   );
 });
 
