@@ -291,7 +291,20 @@ class VisionSystem {
                 // Use DICT_4X4_50 dictionary (small, fast, good for mobile)
                 this.dictionary = new cv.aruco_Dictionary(cv.DICT_4X4_50);
                 this.detectorParams = new cv.aruco_DetectorParameters();
-                console.log("ArUco detector initialized");
+
+                // Improve detection parameters for better reliability
+                this.detectorParams.adaptiveThreshConstant = 7;
+                this.detectorParams.adaptiveThreshWinSizeMin = 3;
+                this.detectorParams.adaptiveThreshWinSizeMax = 23;
+                this.detectorParams.adaptiveThreshWinSizeStep = 10;
+                this.detectorParams.minMarkerPerimeterRate = 0.03;
+                this.detectorParams.maxMarkerPerimeterRate = 4.0;
+                this.detectorParams.polygonalApproxAccuracyRate = 0.05;
+                this.detectorParams.minCornerDistanceRate = 0.05;
+                this.detectorParams.minDistanceToBorder = 3;
+                this.detectorParams.cornerRefinementMethod = cv.CORNER_REFINE_SUBPIX;
+
+                console.log("ArUco detector initialized with enhanced parameters");
             } catch(e) {
                 console.warn("ArUco not available, falling back to square detection:", e);
                 this.useAruco = false;
@@ -329,6 +342,10 @@ class VisionSystem {
         this._ctx.drawImage(video, 0, 0, w, h);
         this.src.data.set(this._ctx.getImageData(0,0,w,h).data);
         cv.cvtColor(this.src, this.gray, cv.COLOR_RGBA2GRAY);
+
+        // Apply histogram equalization for better contrast in challenging lighting
+        // This helps detect markers in poor lighting or high contrast situations
+        cv.equalizeHist(this.gray, this.gray);
 
         if (this.useAruco) {
             if (detectionMode === 'single') {
@@ -401,6 +418,12 @@ class VisionSystem {
                     };
                     detectedIds.push(id);
                 }
+                console.log(`Detected ${detectedIds.length} markers: IDs [${detectedIds.join(', ')}]`);
+            } else {
+                // Log when no markers are detected to help debugging
+                if (Math.random() < 0.1) { // Only log 10% of the time to avoid spam
+                    console.log(`No ArUco markers detected. Rejected candidates: ${rejectedCandidates.size()}`);
+                }
             }
 
             // Calculate pose based on detected markers
@@ -410,7 +433,17 @@ class VisionSystem {
                 pose = this._calculateMultiMarkerPose(detectedMarkers, detectedIds, video, markerSize, detectionMode);
             }
 
-            if (pose) {
+            // Always return detection info, even if we can't calculate pose yet
+            // This allows UI to show partial detection feedback
+            if (detectedIds.length > 0) {
+                if (!pose) {
+                    // Not enough markers for pose, but we detected some - return partial info
+                    pose = {
+                        x: 0, y: 0, z: -1000, // Default position
+                        rotation: null,
+                        partialDetection: true
+                    };
+                }
                 pose.detectedIds = detectedIds;
                 pose.detectedMarkers = detectedMarkers;
                 pose.requiredCount = requiredCount;
@@ -1088,18 +1121,20 @@ const App = {
         if(!this.locked) {
             const pose = this.vision.findMarker(video, this.markerSize, this.detectionMode);
             if(pose) {
-                // Update position with smooth interpolation
-                const t = this.graphics.root.position;
-                t.x += (pose.x - t.x) * 0.2;
-                t.y += (pose.y - t.y) * 0.2;
-                t.z += (pose.z - t.z) * 0.2;
+                // Update position with smooth interpolation (only if not partial detection)
+                if (!pose.partialDetection) {
+                    const t = this.graphics.root.position;
+                    t.x += (pose.x - t.x) * 0.2;
+                    t.y += (pose.y - t.y) * 0.2;
+                    t.z += (pose.z - t.z) * 0.2;
 
-                // Apply parallax rotation if available (from ArUco detection)
-                if(pose.rotation && this.graphics.parallaxEnabled) {
-                    const r = this.graphics.root.rotation;
-                    r.x += (pose.rotation.x - r.x) * 0.15;
-                    r.y += (pose.rotation.y - r.y) * 0.15;
-                    r.z += (pose.rotation.z - r.z) * 0.15;
+                    // Apply parallax rotation if available (from ArUco detection)
+                    if(pose.rotation && this.graphics.parallaxEnabled) {
+                        const r = this.graphics.root.rotation;
+                        r.x += (pose.rotation.x - r.x) * 0.15;
+                        r.y += (pose.rotation.y - r.y) * 0.15;
+                        r.z += (pose.rotation.z - r.z) * 0.15;
+                    }
                 }
 
                 // Update status based on detection mode
@@ -1116,7 +1151,7 @@ const App = {
                     document.getElementById('status-pill').textContent = statusText;
                     document.getElementById('status-pill').className = pose.allMarkersFound ? "locked" : "";
 
-                    // Draw marker feedback on canvas
+                    // Draw marker feedback on canvas (always show detected markers)
                     this.drawMarkerFeedback(pose);
                 }
             } else {
