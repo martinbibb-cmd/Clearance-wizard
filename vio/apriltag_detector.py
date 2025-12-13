@@ -6,12 +6,17 @@ and estimating their 3D pose using Perspective-n-Point (PnP) algorithm.
 """
 
 import numpy as np
-import cv2
+from typing import List, Tuple, Optional, Dict
+
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
 try:
     import apriltag
 except ImportError:
     apriltag = None
-from typing import List, Tuple, Optional, Dict
 
 
 class AprilTagDetector:
@@ -58,6 +63,10 @@ class AprilTagDetector:
         if apriltag is None:
             raise ImportError(
                 "apriltag library not found. Install it with: pip install apriltag"
+            )
+        if cv2 is None:
+            raise ImportError(
+                "OpenCV not found. Install it with: pip install opencv-python"
             )
         
         self.tag_size = tag_size

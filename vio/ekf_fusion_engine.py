@@ -58,7 +58,7 @@ class EKFFusionEngine:
             self.state = initial_state.copy()
         else:
             self.state = np.zeros(16)
-            self.state[3:7] = np.array([1, 0, 0, 0])  # Unit quaternion [w, x, y, z]
+            self.state[6:10] = np.array([1, 0, 0, 0])  # Unit quaternion [w, x, y, z]
         
         # Initialize covariance
         if initial_covariance is not None:
