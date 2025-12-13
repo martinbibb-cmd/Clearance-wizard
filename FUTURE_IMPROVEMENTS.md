@@ -2,7 +2,11 @@
 
 This document outlines potential upgrades and enhancements to improve the accuracy, reliability, and usability of the Clearance Genie AR application.
 
-## 1. AprilTag Integration (Recommended First Step)
+## 1. AprilTag Integration (✨ Partial Implementation Complete!)
+
+### Status Update
+- ✅ **Marker Generation**: COMPLETE - In-app AprilTag generator now available!
+- ⏳ **Marker Detection**: IN PROGRESS - Requires custom OpenCV.js build with AprilTag module
 
 ### Why AprilTag?
 AprilTag is a superior alternative to ArUco markers, offering:
@@ -10,6 +14,16 @@ AprilTag is a superior alternative to ArUco markers, offering:
 - **Improved performance at steep angles**: Better detection when viewing markers from various perspectives
 - **More robust pose estimation**: Enhanced accuracy, especially in low-resolution images or at long distances
 - **Industry standard**: Used in robotics, autonomous vehicles, and industrial applications
+
+### What's Available Now?
+Users can now generate AprilTag markers directly in the app:
+1. Tap "Get Markers" on welcome screen
+2. Click "Generate AprilTag"
+3. Select tag family (tag36h11 recommended)
+4. Choose tag ID and size
+5. Download or print marker
+
+Detection will be added once custom OpenCV.js build is integrated.
 
 ### Implementation Options
 

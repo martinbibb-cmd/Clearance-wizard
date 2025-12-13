@@ -75,14 +75,22 @@ http://localhost:8000
 
 ## Marker Detection
 
-This application uses computer vision (ArUco markers) for precise AR tracking. **See [MARKER_GUIDE.md](MARKER_GUIDE.md) for comprehensive instructions.**
+This application uses computer vision markers for precise AR tracking. **See [MARKER_GUIDE.md](MARKER_GUIDE.md) for comprehensive instructions.**
 
 ### Quick Start
 
+**Option 1: ArUco Markers (Current - Fully Supported)**
 1. **Download markers** from [ArUco Generator](https://chev.me/arucogen/)
 2. **Select dictionary**: DICT_4X4_50
 3. **Print size**: 190mm recommended (measure BLACK SQUARE only)
 4. **Print on white paper** with black ink
+
+**Option 2: AprilTag Markers (✨ New - Generation Available)**
+1. **Generate in-app**: Tap "Get Markers" → "Generate AprilTag" on the welcome screen
+2. **Select family**: tag36h11 (recommended)
+3. **Choose size**: 190mm recommended
+4. **Download & print**: Use the built-in generator
+5. ⚠️ **Note**: AprilTag detection coming soon (requires OpenCV.js update)
 
 ### Recommended Marker Sizes
 - 45mm - Close-up work (0.2m - 1m)

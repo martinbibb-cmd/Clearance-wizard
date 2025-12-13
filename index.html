@@ -11,7 +11,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Clearance Genie">
-    <link rel="manifest" href="./manifest.json?v=2.0.0">
+    <link rel="manifest" href="./manifest.json?v=2.1.0">
     <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./icon-192.png">
     <title>Clearance Genie: Final</title>
@@ -1734,7 +1734,7 @@ const App = {
 // ==========================================
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js?v=2.0.0')
+        navigator.serviceWorker.register('./service-worker.js?v=2.1.0')
             .then((registration) => {
                 console.log('✓ Service Worker registered successfully:', registration.scope);
 
