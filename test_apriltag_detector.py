@@ -96,10 +96,6 @@ def test_object_points():
     for i, point in enumerate(points):
         print(f"  Corner {i}: {point}")
     
-    # Check that points form a square
-    half_size = tag_size / 2.0
-    expected_distances = [tag_size, np.sqrt(2) * tag_size, tag_size, np.sqrt(2) * tag_size]
-    
     # Check all points are in Z=0 plane
     if np.all(points[:, 2] == 0):
         print(f"✓ All points in Z=0 plane (planar marker)")
@@ -235,13 +231,14 @@ def test_visualization():
     # Create a blank image
     image = np.ones((480, 640, 3), dtype=np.uint8) * 255
     
-    # Create mock detection (with proper shapes for OpenCV)
+    # Create mock detection (matching the format from detect() method)
+    # Note: detect() returns flattened vectors via tvec.flatten() and rvec.flatten()
     mock_detection = {
         'tag_id': 0,
         'center': np.array([320.0, 240.0]),
         'corners': np.array([[310, 230], [330, 230], [330, 250], [310, 250]], dtype=np.float32),
-        'translation': np.array([[0.0], [0.0], [1.0]]),  # Column vector (3, 1)
-        'rotation_vector': np.array([[0.0], [0.0], [0.0]]),  # Column vector (3, 1)
+        'translation': np.array([0.0, 0.0, 1.0]),  # Flattened vector (3,)
+        'rotation_vector': np.array([0.0, 0.0, 0.0]),  # Flattened vector (3,)
         'rotation_matrix': np.eye(3),
     }
     
