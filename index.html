@@ -926,6 +926,11 @@ const App = {
     locked: false,
     cvReady: false,
     loadTimeoutId: null, // Timer to track long initialization
+    
+    // Contextual hint timing (milliseconds)
+    HINT_DELAY_INITIAL: 3000,  // "Try moving closer"
+    HINT_DELAY_LIGHTING: 8000, // "Check lighting"
+    HINT_DELAY_GUIDE: 15000,   // "See marker guide"
 
     onCvLoaded: function() {
         console.log("OpenCV script file loaded successfully. Starting internal initialization check.");
@@ -1186,8 +1191,8 @@ const App = {
                     const count = pose.detectedIds.length;
                     const required = pose.requiredCount;
                     
-                    // Create visual progress indicators (dots)
-                    const dots = Array(required).fill(0).map((_, i) => i < count ? '●' : '○').join('');
+                    // Create visual progress indicators (dots): filled (●) for detected, empty (○) for missing
+                    const dots = Array(required).fill(null).map((_, i) => i < count ? '●' : '○').join('');
                     
                     const statusText = pose.allMarkersFound
                         ? `✓ Ready ${dots}`
@@ -1206,11 +1211,11 @@ const App = {
                 
                 const noDetectionDuration = Date.now() - this._noDetectionTime;
                 
-                if (noDetectionDuration < 3000) {
+                if (noDetectionDuration < this.HINT_DELAY_INITIAL) {
                     document.getElementById('status-pill').textContent = "🔍 Looking...";
-                } else if (noDetectionDuration < 8000) {
+                } else if (noDetectionDuration < this.HINT_DELAY_LIGHTING) {
                     document.getElementById('status-pill').textContent = "💡 Try moving closer";
-                } else if (noDetectionDuration < 15000) {
+                } else if (noDetectionDuration < this.HINT_DELAY_GUIDE) {
                     document.getElementById('status-pill').textContent = "💡 Check lighting";
                 } else {
                     document.getElementById('status-pill').textContent = "💡 See marker guide";
