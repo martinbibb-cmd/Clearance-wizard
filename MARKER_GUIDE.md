@@ -3,8 +3,8 @@
 ## Quick Reference
 
 ### Marker Types Supported
-- ✅ **ArUco Markers** (DICT_4X4_50) - Currently supported
-- 🚀 **AprilTag** - Coming soon (higher accuracy)
+- ✅ **ArUco Markers** (DICT_4X4_50) - Fully supported (detection + generation)
+- ✨ **AprilTag Markers** - Generation available in-app! Detection coming soon
 - 📐 **Custom Squares** - Fallback detection
 
 ### Recommended Marker Sizes
@@ -21,7 +21,24 @@
 
 ## How to Create Markers
 
-### Option 1: Online Generator (Recommended)
+### Option 1: In-App Generator (✨ New for AprilTag!)
+1. Open Clearance Genie
+2. On the welcome screen, tap **"📍 Get Markers"** to expand
+3. Click **"Generate AprilTag"** button
+4. Configure settings:
+   - **Tag Family**: tag36h11 (recommended for best accuracy)
+   - **Tag ID**: Choose 0-586 (use different IDs for multi-marker setups)
+   - **Size**: 190mm recommended
+5. Click **"Generate Marker"**
+6. Download or print directly
+
+**Benefits of AprilTag:**
+- ✨ Better accuracy at steep angles
+- ✨ More resistant to false positives
+- ✨ Industry-standard (robotics, autonomous systems)
+- ⚠️ Detection coming soon (generation available now)
+
+### Option 2: Online ArUco Generator (Current - Fully Supported)
 1. Visit [ArUco Marker Generator](https://chev.me/arucogen/)
 2. Select dictionary: **DICT_4X4_50**
 3. Choose marker IDs:
@@ -31,7 +48,7 @@
 4. Set marker size: **190mm** (recommended)
 5. Download and print on white paper
 
-### Option 2: Manual Creation
+### Option 3: Manual Creation (Advanced)
 ```python
 # Using Python and OpenCV
 import cv2

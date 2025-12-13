@@ -22,12 +22,18 @@
 // - v1.0.0: Initial release
 // ==========================================
 
-const CACHE_VERSION = '2.0.0';
+const CACHE_VERSION = '2.1.0';
 const CACHE_NAME = `clearance-genie-v${CACHE_VERSION}`;
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
+  './apriltag.js',
+  './apriltag-families/16h5.json',
+  './apriltag-families/25h9.json',
+  './apriltag-families/36h10.json',
+  './apriltag-families/36h11.json',
+  './apriltag-families/36h9.json',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
   // Note: opencv.js (7.69 MB) is excluded from cache due to size
   // It relies on browser caching and CDN fallback instead

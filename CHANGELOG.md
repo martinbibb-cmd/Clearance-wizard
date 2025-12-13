@@ -1,5 +1,44 @@
 # Changelog - Clearance Genie
 
+## Version 2.2 - AprilTag Marker Generation (2025-12-13)
+
+### ✨ New Features
+
+#### AprilTag Marker Generator
+- ✅ **In-app marker generation** - Generate AprilTag markers directly in the app
+- ✅ **Multiple tag families** - Support for tag36h11, tag25h9, tag16h5, tag36h9, tag36h10
+- ✅ **Dynamic validation** - Tag ID limits automatically adjust based on selected family
+- ✅ **Download & Print** - One-click download or print functionality
+- ✅ **Secure implementation** - XSS protection and proper input validation
+
+#### Library Integration
+- ✅ **apriltag.js** - Integrated AprilTag generation library (1.9KB)
+- ✅ **Tag family files** - Included JSON definitions for 5 tag families (~108KB total)
+- ✅ **PWA caching** - Service worker updated to cache AprilTag files offline
+
+### 📝 Documentation Updates
+- ✅ **README** - Added AprilTag generation instructions
+- ✅ **MARKER_GUIDE** - New section on in-app generator usage
+- ✅ **FUTURE_IMPROVEMENTS** - Updated status for AprilTag implementation
+
+### 🔧 Technical Improvements
+- ✅ **Service Worker v2.1.0** - Updated cache with AprilTag assets
+- ✅ **Security** - XSS prevention in print function
+- ✅ **UX** - Dynamic tag ID limits based on selected family
+- ✅ **Error handling** - Proper library loading checks
+
+### 🚧 Work in Progress
+- ⏳ **AprilTag Detection** - Requires custom OpenCV.js build (deferred to future PR)
+- ⏳ **Marker type toggle** - Will be added when detection is implemented
+
+### 📊 Impact
+- **Immediate value**: Users can now generate AprilTag markers without external tools
+- **Future-ready**: Code structured to easily add detection when OpenCV.js is updated
+- **Security**: All inputs validated, XSS vulnerabilities prevented
+- **Offline-capable**: All AprilTag files cached for PWA functionality
+
+---
+
 ## Version 2.1 - UI & Documentation Improvements (2025-12-13)
 
 ### 🎨 UI Improvements

@@ -11,7 +11,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Clearance Genie">
-    <link rel="manifest" href="./manifest.json?v=2.0.0">
+    <link rel="manifest" href="./manifest.json?v=2.1.0">
     <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./icon-192.png">
     <title>Clearance Genie: Final</title>
@@ -51,6 +51,7 @@
         })();
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="./apriltag.js"></script>
 
     <style>
         :root { --wb-blue: #005eb8; --wb-red: #e30613; }
@@ -132,7 +133,8 @@
             <details style="background: #f0f0f0; padding: 12px; border-radius: 8px; margin-bottom: 15px; cursor: pointer;">
                 <summary style="font-weight: 600; color: #666; cursor: pointer;">📍 Get Markers</summary>
                 <div style="margin-top: 10px; font-size: 0.8rem; color: #666;">
-                    <p style="margin: 5px 0;">Download ArUco markers (DICT_4X4_50) from <a href="https://chev.me/arucogen/" target="_blank" style="color: var(--wb-blue);">arucogen</a></p>
+                    <p style="margin: 5px 0;"><strong>ArUco markers (current):</strong> Download (DICT_4X4_50) from <a href="https://chev.me/arucogen/" target="_blank" style="color: var(--wb-blue);">arucogen</a></p>
+                    <p style="margin: 5px 0;"><strong>✨ AprilTag markers (new!):</strong> <button onclick="App.showMarkerGenerator()" style="padding: 5px 10px; border: none; background: var(--wb-blue); color: white; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Generate AprilTag</button></p>
                     <p style="margin: 5px 0;">💡 <strong>Tip:</strong> Larger markers (190mm) = better tracking</p>
                     <p style="margin: 5px 0;">📏 <strong>Measure:</strong> BLACK SQUARE ONLY (no white border)</p>
                 </div>
@@ -229,6 +231,55 @@
             </button>
         </div>
 
+        <div id="marker-generator-panel" class="card interactive hidden">
+            <h1>🏷️ AprilTag Generator</h1>
+            <p style="text-align: center; color: #666; font-size: 0.9rem; margin-bottom: 20px;">
+                Generate AprilTag markers for enhanced detection accuracy
+            </p>
+
+            <label>Tag Family</label>
+            <select id="tag-family-select" style="margin-bottom: 15px;">
+                <option value="36h11">tag36h11 (Recommended) ⭐</option>
+                <option value="25h9">tag25h9 (Smaller)</option>
+                <option value="16h5">tag16h5 (Fastest)</option>
+            </select>
+
+            <label>Tag ID</label>
+            <input type="number" id="tag-id-input" min="0" max="586" value="0" style="margin-bottom: 15px;" placeholder="Enter Tag ID">
+            <p id="tag-id-help" style="font-size: 0.75rem; color: #666; margin: -10px 0 15px 0;"></p>
+
+            <label>Marker Size (mm)</label>
+            <select id="tag-size-select" style="margin-bottom: 15px;">
+                <option value="90">90mm (Standard)</option>
+                <option value="148">148mm (A5)</option>
+                <option value="190">190mm (Recommended) ⭐</option>
+                <option value="custom">Custom...</option>
+            </select>
+
+            <div id="tag-custom-size-container" class="hidden" style="margin-bottom: 15px;">
+                <input type="number" id="tag-custom-size-input" min="10" max="500" step="1" placeholder="Custom size (mm)">
+            </div>
+
+            <button class="primary" onclick="App.generateAprilTag()" style="margin-bottom: 10px;">
+                🎨 Generate Marker
+            </button>
+
+            <div id="marker-preview" class="hidden" style="text-align: center; margin: 20px 0;">
+                <canvas id="marker-canvas" style="max-width: 100%; border: 1px solid #ccc; border-radius: 8px;"></canvas>
+                <div style="margin-top: 10px; display: flex; gap: 10px; justify-content: center;">
+                    <button onclick="App.downloadMarker()" style="padding: 10px 20px; border: none; background: var(--wb-blue); color: white; border-radius: 6px; cursor: pointer;">
+                        💾 Download
+                    </button>
+                    <button onclick="App.printMarker()" style="padding: 10px 20px; border: none; background: #666; color: white; border-radius: 6px; cursor: pointer;">
+                        🖨️ Print
+                    </button>
+                </div>
+            </div>
+
+            <button onclick="App.hideMarkerGenerator()" style="background: #999; color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; cursor: pointer;">
+                ← Back
+            </button>
+        </div>
 
         <div id="controls-panel" class="control-bar interactive hidden">
             <button class="btn-round" onclick="App.resetObject()">↺</button>
@@ -1492,6 +1543,233 @@ const App = {
             URL.revokeObjectURL(url);
             console.log('✓ Image downloaded successfully');
         }, 'image/png');
+    },
+
+    // ====================
+    // APRILTAG GENERATOR
+    // ====================
+    showMarkerGenerator: function() {
+        document.getElementById('welcome-panel').classList.add('hidden');
+        document.getElementById('marker-generator-panel').classList.remove('hidden');
+        
+        // Handle custom size toggle
+        const sizeSelect = document.getElementById('tag-size-select');
+        const customContainer = document.getElementById('tag-custom-size-container');
+        sizeSelect.addEventListener('change', () => {
+            if (sizeSelect.value === 'custom') {
+                customContainer.classList.remove('hidden');
+            } else {
+                customContainer.classList.add('hidden');
+            }
+        });
+        
+        // Handle family change to update tag ID limits
+        const familySelect = document.getElementById('tag-family-select');
+        const tagIdInput = document.getElementById('tag-id-input');
+        const tagIdHelp = document.getElementById('tag-id-help');
+        
+        const updateTagIdLimit = async () => {
+            const family = familySelect.value;
+            try {
+                const response = await fetch(`./apriltag-families/${family}.json`);
+                const tagConfig = await response.json();
+                const maxId = tagConfig.codes.length - 1;
+                tagIdInput.max = maxId;
+                tagIdHelp.textContent = `Valid range: 0-${maxId}`;
+            } catch (e) {
+                tagIdHelp.textContent = 'Enter Tag ID';
+            }
+        };
+        
+        familySelect.addEventListener('change', updateTagIdLimit);
+        updateTagIdLimit(); // Set initial limit
+    },
+
+    hideMarkerGenerator: function() {
+        document.getElementById('marker-generator-panel').classList.add('hidden');
+        document.getElementById('welcome-panel').classList.remove('hidden');
+        document.getElementById('marker-preview').classList.add('hidden');
+    },
+
+    generateAprilTag: async function() {
+        const familySelect = document.getElementById('tag-family-select');
+        const tagIdInput = document.getElementById('tag-id-input');
+        const sizeSelect = document.getElementById('tag-size-select');
+        const customSizeInput = document.getElementById('tag-custom-size-input');
+
+        const family = familySelect.value;
+        const tagId = parseInt(tagIdInput.value);
+        const sizeValue = sizeSelect.value === 'custom' ? 
+            parseInt(customSizeInput.value) : parseInt(sizeSelect.value);
+
+        if (isNaN(tagId) || tagId < 0) {
+            alert('Please enter a valid Tag ID (0 or greater)');
+            return;
+        }
+
+        if (isNaN(sizeValue) || sizeValue < 10 || sizeValue > 500) {
+            alert('Please enter a valid marker size (10-500mm)');
+            return;
+        }
+
+        try {
+            // Load the tag family JSON
+            const response = await fetch(`./apriltag-families/${family}.json`);
+            const tagConfig = await response.json();
+
+            // Check if AprilTag library is loaded
+            if (typeof AprilTagFamily === 'undefined' && typeof window.AprilTagFamily === 'undefined') {
+                alert('AprilTag library not loaded. Please refresh the page.');
+                return;
+            }
+            
+            // Use AprilTagFamily from global scope
+            const AprilTagFamilyClass = typeof AprilTagFamily !== 'undefined' ? AprilTagFamily : window.AprilTagFamily;
+
+            const tagFamily = new AprilTagFamilyClass(tagConfig);
+            
+            // Check if tag ID is valid for this family
+            if (tagId >= tagConfig.codes.length) {
+                alert(`Tag ID ${tagId} is out of range for family ${family}. Maximum ID: ${tagConfig.codes.length - 1}`);
+                return;
+            }
+
+            // Render the tag
+            const tagMatrix = tagFamily.render(tagId);
+
+            // Draw to canvas
+            const canvas = document.getElementById('marker-canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Calculate canvas size (tag size + border)
+            const tagSize = tagMatrix.length;
+            const borderSize = 1; // 1 cell border on each side
+            const totalSize = tagSize + (borderSize * 2);
+            const cellSize = 20; // pixels per cell
+
+            canvas.width = totalSize * cellSize;
+            canvas.height = totalSize * cellSize;
+
+            // Fill background (white)
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw tag (apriltag.js returns 'b' for black, 'w' for white)
+            ctx.fillStyle = 'black';
+            for (let y = 0; y < tagSize; y++) {
+                for (let x = 0; x < tagSize; x++) {
+                    if (tagMatrix[y][x] === 'b') {
+                        ctx.fillRect(
+                            (x + borderSize) * cellSize,
+                            (y + borderSize) * cellSize,
+                            cellSize,
+                            cellSize
+                        );
+                    }
+                }
+            }
+
+            // Show preview and download buttons
+            document.getElementById('marker-preview').classList.remove('hidden');
+            
+            // Store current settings for download
+            this.currentMarker = {
+                family: family,
+                tagId: tagId,
+                size: sizeValue
+            };
+
+            console.log(`✓ Generated AprilTag: family=${family}, id=${tagId}, size=${sizeValue}mm`);
+        } catch (error) {
+            console.error('Error generating AprilTag:', error);
+            alert('Failed to generate AprilTag. Please check the console for details.');
+        }
+    },
+
+    downloadMarker: function() {
+        if (!this.currentMarker) {
+            alert('Please generate a marker first');
+            return;
+        }
+
+        const canvas = document.getElementById('marker-canvas');
+        canvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `apriltag-${this.currentMarker.family}-id${this.currentMarker.tagId}-${this.currentMarker.size}mm.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            console.log('✓ AprilTag marker downloaded');
+        }, 'image/png');
+    },
+
+    printMarker: function() {
+        if (!this.currentMarker) {
+            alert('Please generate a marker first');
+            return;
+        }
+
+        // Create a new window for printing
+        const canvas = document.getElementById('marker-canvas');
+        const printWindow = window.open('', '_blank');
+        
+        if (!printWindow) {
+            alert('Pop-up blocked. Please allow pop-ups to print.');
+            return;
+        }
+        
+        // Escape HTML to prevent XSS
+        const escapeHtml = (str) => String(str).replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[char]));
+        
+        // Store marker info in local variables to avoid context issues
+        const safeFamily = escapeHtml(this.currentMarker.family);
+        const safeTagId = escapeHtml(this.currentMarker.tagId);
+        const safeSize = escapeHtml(this.currentMarker.size);
+        
+        const img = new Image();
+        
+        img.onload = function() {
+            // img.src is a data URL generated by canvas.toDataURL(), not user input
+            // No escaping needed for data URLs
+            const imgSrc = img.src;
+            
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Print AprilTag Marker</title>
+                    <style>
+                        @page { margin: 20mm; }
+                        body { margin: 0; padding: 20px; text-align: center; }
+                        img { max-width: 100%; height: auto; }
+                        .info { margin: 20px 0; font-family: Arial, sans-serif; }
+                    </style>
+                </head>
+                <body>
+                    <div class="info">
+                        <h2>AprilTag Marker</h2>
+                        <p><strong>Family:</strong> ${safeFamily}</p>
+                        <p><strong>Tag ID:</strong> ${safeTagId}</p>
+                        <p><strong>Size:</strong> ${safeSize}mm (measure BLACK SQUARE only)</p>
+                    </div>
+                    <img src="${imgSrc}" alt="AprilTag Marker">
+                    <script>window.onload = function() { window.print(); }<\/script>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+        };
+        
+        img.src = canvas.toDataURL('image/png');
     }
 };
 
@@ -1500,7 +1778,7 @@ const App = {
 // ==========================================
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js?v=2.0.0')
+        navigator.serviceWorker.register('./service-worker.js?v=2.1.0')
             .then((registration) => {
                 console.log('✓ Service Worker registered successfully:', registration.scope);
 
