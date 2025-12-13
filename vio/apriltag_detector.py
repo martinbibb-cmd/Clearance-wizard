@@ -6,7 +6,7 @@ and estimating their 3D pose using Perspective-n-Point (PnP) algorithm.
 """
 
 import numpy as np
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional, Dict, Any
 
 try:
     import cv2
@@ -87,7 +87,7 @@ class AprilTagDetector:
             [-half_size,  half_size, 0],  # Top-left
         ], dtype=np.float32)
     
-    def detect(self, image: np.ndarray) -> List[Dict[str, any]]:
+    def detect(self, image: np.ndarray) -> List[Dict[str, Any]]:
         """
         Detect all AprilTags in the image and estimate their 3D pose.
         
@@ -98,7 +98,7 @@ class AprilTagDetector:
         
         Returns
         -------
-        List[Dict[str, any]]
+        List[Dict[str, Any]]
             List of detected tags, where each tag is a dictionary containing:
             - 'tag_id': int - Unique identifier of the detected tag
             - 'center': np.ndarray - 2D center position in image (x, y)
@@ -157,7 +157,7 @@ class AprilTagDetector:
     
     def get_pose_from_tag_id(
         self,
-        detections: List[Dict[str, any]],
+        detections: List[Dict[str, Any]],
         tag_id: int
     ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
         """
@@ -165,7 +165,7 @@ class AprilTagDetector:
         
         Parameters
         ----------
-        detections : List[Dict[str, any]]
+        detections : List[Dict[str, Any]]
             List of detections from detect() method.
         tag_id : int
             Tag ID to search for.
@@ -184,7 +184,7 @@ class AprilTagDetector:
     def visualize_detections(
         self,
         image: np.ndarray,
-        detections: List[Dict[str, any]],
+        detections: List[Dict[str, Any]],
         draw_axes: bool = True,
         axis_length: float = None
     ) -> np.ndarray:
@@ -195,7 +195,7 @@ class AprilTagDetector:
         ----------
         image : np.ndarray
             Input image to draw on (will be copied).
-        detections : List[Dict[str, any]]
+        detections : List[Dict[str, Any]]
             List of detections from detect() method.
         draw_axes : bool, optional
             Whether to draw 3D coordinate axes. Default is True.
