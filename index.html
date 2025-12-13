@@ -101,80 +101,98 @@
                 AR Clearance Checker for Heating Appliances
             </p>
 
-            <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                <h2 style="margin: 0 0 10px 0; font-size: 1rem; color: var(--wb-blue);">📋 How to Use</h2>
-                <ol style="margin: 0; padding-left: 20px; color: #444; font-size: 0.85rem; line-height: 1.6;">
-                    <li><strong>Choose detection mode:</strong>
-                        <ul style="margin: 5px 0; padding-left: 20px;">
-                            <li><strong>Single Marker:</strong> Print one ArUco marker (60mm calibration card)</li>
-                            <li><strong>4-Marker Boiler Overlay:</strong> Place markers 1-4 at boiler corners (90mm each)</li>
-                            <li><strong>5-Marker Window + Flue:</strong> Place 1-4 at window corners, 5 at flue position (90mm each)</li>
-                        </ul>
-                    </li>
-                    <li><strong>Select settings:</strong> Choose your detection mode, marker size, appliance category, and model.</li>
-                    <li><strong>Start camera:</strong> Point your device at the marker(s).</li>
-                    <li><strong>View in 3D:</strong> The AR clearance volume will appear with parallax effects as you move.</li>
-                    <li><strong>Lock view:</strong> When satisfied, lock the view and capture the image.</li>
-                    <li><strong>Review:</strong> Check the clearance requirements are met in 3D space.</li>
-                </ol>
+            <!-- Quick Start Steps (Visual & Minimal) -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
+                <div style="text-align: center; padding: 15px; background: #f0f7ff; border-radius: 8px;">
+                    <div style="font-size: 2rem; margin-bottom: 5px;">📐</div>
+                    <div style="font-size: 0.75rem; font-weight: 600; color: #333;">Print Marker</div>
+                </div>
+                <div style="text-align: center; padding: 15px; background: #f0f7ff; border-radius: 8px;">
+                    <div style="font-size: 2rem; margin-bottom: 5px;">📱</div>
+                    <div style="font-size: 0.75rem; font-weight: 600; color: #333;">Point Camera</div>
+                </div>
+                <div style="text-align: center; padding: 15px; background: #f0f7ff; border-radius: 8px;">
+                    <div style="font-size: 2rem; margin-bottom: 5px;">👁️</div>
+                    <div style="font-size: 0.75rem; font-weight: 600; color: #333;">View AR</div>
+                </div>
             </div>
 
-            <div style="background: #fff5e6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #ff9800;">
-                <p style="margin: 0; font-size: 0.8rem; color: #666;">
-                    <strong>💡 Tip:</strong> Larger markers (190mm) provide better tracking stability, especially when viewing from a distance.
-                </p>
-            </div>
+            <!-- Collapsible Instructions -->
+            <details style="background: #f9f9f9; padding: 12px; border-radius: 8px; margin-bottom: 15px; cursor: pointer;">
+                <summary style="font-weight: 600; color: var(--wb-blue); cursor: pointer;">📋 How to Use (tap to expand)</summary>
+                <div style="margin-top: 10px; font-size: 0.85rem; line-height: 1.5; color: #444;">
+                    <p style="margin: 8px 0;"><strong>1. Choose Mode:</strong> Single marker or multi-marker (4 or 5)</p>
+                    <p style="margin: 8px 0;"><strong>2. Configure:</strong> Select appliance type and marker size</p>
+                    <p style="margin: 8px 0;"><strong>3. Scan:</strong> Point camera at marker(s)</p>
+                    <p style="margin: 8px 0;"><strong>4. Capture:</strong> Lock view and save image</p>
+                </div>
+            </details>
 
-            <div style="background: #f0f0f0; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #666;">
-                <p style="margin: 0; font-size: 0.75rem; color: #666;">
-                    <strong>📍 ArUco Markers:</strong> For best results, use ArUco markers (DICT_4X4_50). Download from
-                    <a href="https://chev.me/arucogen/" target="_blank" style="color: var(--wb-blue);">arucogen</a>.
-                    For multi-marker modes, print 4 or 5 markers with any IDs - the app will detect them automatically.
-                </p>
-            </div>
+            <!-- Marker Info -->
+            <details style="background: #f0f0f0; padding: 12px; border-radius: 8px; margin-bottom: 15px; cursor: pointer;">
+                <summary style="font-weight: 600; color: #666; cursor: pointer;">📍 Get Markers</summary>
+                <div style="margin-top: 10px; font-size: 0.8rem; color: #666;">
+                    <p style="margin: 5px 0;">Download ArUco markers (DICT_4X4_50) from <a href="https://chev.me/arucogen/" target="_blank" style="color: var(--wb-blue);">arucogen</a></p>
+                    <p style="margin: 5px 0;">💡 <strong>Tip:</strong> Larger markers (190mm) = better tracking</p>
+                    <p style="margin: 5px 0;">📏 <strong>Measure:</strong> BLACK SQUARE ONLY (no white border)</p>
+                </div>
+            </details>
 
-            <div style="background: #fff3cd; padding: 12px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
-                <p style="margin: 0; font-size: 0.75rem; color: #856404;">
-                    <strong>📏 Important - Measuring Markers:</strong> Always measure the <strong>BLACK SQUARE AREA ONLY</strong>, excluding any white border around the marker. This ensures accurate calibration and makes manual verification possible with a ruler.
-                </p>
+            <button class="primary" onclick="App.showMainMenu()" style="margin-bottom: 10px; font-size: 1.1rem; padding: 15px;">🚀 Get Started</button>
+            
+            <!-- Quick Links -->
+            <div style="display: flex; gap: 10px; font-size: 0.75rem; justify-content: center; color: #666;">
+                <a href="MARKER_GUIDE.md" target="_blank" style="color: var(--wb-blue);">📖 Marker Guide</a>
+                <span>|</span>
+                <a href="FUTURE_IMPROVEMENTS.md" target="_blank" style="color: var(--wb-blue);">🚀 Roadmap</a>
+                <span>|</span>
+                <a href="README.md" target="_blank" style="color: var(--wb-blue);">❓ Help</a>
             </div>
-
-            <button class="primary" onclick="App.showMainMenu()" style="margin-bottom: 10px;">Get Started</button>
         </div>
 
         <div id="menu-panel" class="card interactive hidden">
             <h1>🔥 Clearance Genie</h1>
 
-            <label>1. Detection Mode</label>
-            <select id="input-detection-mode" onchange="App.onDetectionModeChange()">
-                <option value="single">Single Marker (Calibration Card)</option>
-                <option value="4-marker">4-Marker (Boiler Overlay)</option>
-                <option value="5-marker">5-Marker (Window + Flue)</option>
+            <!-- Detection Mode with Visual Cards -->
+            <label style="display: flex; align-items: center; gap: 5px;">
+                📐 Detection Mode
+            </label>
+            <select id="input-detection-mode" onchange="App.onDetectionModeChange()" style="font-size: 0.95rem;">
+                <option value="single">📍 Single Marker</option>
+                <option value="4-marker">📐 4-Marker (Boiler)</option>
+                <option value="5-marker">🪟 5-Marker (Window)</option>
             </select>
 
+            <!-- Marker Size -->
             <div id="single-marker-size-container">
-                <label>2. Marker Size (Black Square Only)</label>
+                <label style="display: flex; align-items: center; gap: 5px;">
+                    📏 Marker Size
+                </label>
                 <select id="input-size" onchange="App.onSizeChange()">
-                    <option value="45">45mm (Your Marker)</option>
+                    <option value="45">45mm</option>
                     <option value="53">53mm (Credit Card)</option>
-                    <option value="148">148mm (A5 Square)</option>
-                    <option value="167">167mm (A4 Print)</option>
-                    <option value="190">190mm (A4 Square) - Recommended</option>
-                    <option value="custom">Custom Size...</option>
+                    <option value="148">148mm (A5)</option>
+                    <option value="167">167mm (A4)</option>
+                    <option value="190">190mm (Recommended) ⭐</option>
+                    <option value="custom">✏️ Custom...</option>
                 </select>
 
                 <div id="custom-size-container" class="hidden">
-                    <label>Custom Marker Size - Black Square Only (mm)</label>
-                    <input type="number" id="custom-size-input" min="10" max="500" step="1" placeholder="Measure black area only (mm)" aria-label="Custom marker size in millimeters - black square area only">
+                    <input type="number" id="custom-size-input" min="10" max="500" step="1" placeholder="Custom size (mm)" aria-label="Custom marker size in millimeters">
                 </div>
             </div>
 
             <div id="multi-marker-size-container" class="hidden">
-                <label>2. Multi-Marker Size (Black Square Only, mm)</label>
-                <input type="number" id="multi-marker-size-input" min="10" max="500" step="1" value="90" placeholder="Measure black area only (mm)" aria-label="Multi-marker size in millimeters - black square area only">
+                <label style="display: flex; align-items: center; gap: 5px;">
+                    📏 Marker Size
+                </label>
+                <input type="number" id="multi-marker-size-input" min="10" max="500" step="1" value="90" placeholder="Size in mm" aria-label="Multi-marker size in millimeters">
             </div>
 
-            <label>3. Category</label>
+            <!-- Appliance Selection -->
+            <label style="display: flex; align-items: center; gap: 5px;">
+                🏭 Appliance Type
+            </label>
             <select id="input-category" onchange="App.updateModels()">
                 <option value="boiler">🔥 Boilers</option>
                 <option value="flue">⭕ Flues</option>
@@ -182,22 +200,33 @@
                 <option value="cylinder">🛢️ Cylinders</option>
             </select>
 
-            <label>4. Select Model</label>
+            <label style="display: flex; align-items: center; gap: 5px;">
+                🏷️ Model
+            </label>
             <select id="input-type" onchange="App.onModelChange()">
             </select>
 
-            <label>5. Manual Depth Offset (mm)</label>
-            <input type="number" id="manual-depth-offset" min="-1000" max="1000" step="10" value="0" placeholder="Adjust AR depth (+/- mm)" aria-label="Manual depth adjustment for AR model in millimeters">
-
+            <!-- Custom Radiator Dimensions -->
             <div id="custom-radiator-container" class="hidden">
-                <label>Radiator Width (mm)</label>
-                <input type="number" id="custom-radiator-width" min="100" max="3000" step="1" value="1000" placeholder="Enter width in mm" aria-label="Custom radiator width in millimeters">
+                <label>Width (mm)</label>
+                <input type="number" id="custom-radiator-width" min="100" max="3000" step="1" value="1000" placeholder="Width">
                 
-                <label>Radiator Height (mm)</label>
-                <input type="number" id="custom-radiator-height" min="100" max="2000" step="1" value="600" placeholder="Enter height in mm" aria-label="Custom radiator height in millimeters">
+                <label>Height (mm)</label>
+                <input type="number" id="custom-radiator-height" min="100" max="2000" step="1" value="600" placeholder="Height">
             </div>
 
-            <button id="start-camera-btn" class="primary" onclick="App.startSession()" disabled>Loading OpenCV...</button>
+            <!-- Advanced Options (Collapsible) -->
+            <details style="margin-bottom: 15px;">
+                <summary style="font-size: 0.85rem; color: #666; cursor: pointer; padding: 8px; background: #f5f5f5; border-radius: 6px;">⚙️ Advanced Settings</summary>
+                <div style="margin-top: 10px;">
+                    <label style="font-size: 0.8rem;">Depth Offset (mm)</label>
+                    <input type="number" id="manual-depth-offset" min="-1000" max="1000" step="10" value="0" placeholder="Fine-tune depth" aria-label="Manual depth adjustment">
+                </div>
+            </details>
+
+            <button id="start-camera-btn" class="primary" onclick="App.startSession()" disabled style="font-size: 1.1rem; padding: 15px;">
+                📷 Start Camera
+            </button>
         </div>
 
 
@@ -897,6 +926,11 @@ const App = {
     locked: false,
     cvReady: false,
     loadTimeoutId: null, // Timer to track long initialization
+    
+    // Contextual hint timing (milliseconds)
+    HINT_DELAY_INITIAL: 3000,  // "Try moving closer"
+    HINT_DELAY_LIGHTING: 8000, // "Check lighting"
+    HINT_DELAY_GUIDE: 15000,   // "See marker guide"
 
     onCvLoaded: function() {
         console.log("OpenCV script file loaded successfully. Starting internal initialization check.");
@@ -1153,12 +1187,16 @@ const App = {
                     document.getElementById('status-pill').textContent = "✓ Tracking";
                     document.getElementById('status-pill').className = "locked";
                 } else {
-                    // Multi-marker mode: show detected markers count
+                    // Multi-marker mode: show detected markers count with visual indicators
                     const count = pose.detectedIds.length;
                     const required = pose.requiredCount;
+                    
+                    // Create visual progress indicators (dots): filled (●) for detected, empty (○) for missing
+                    const dots = Array(required).fill(null).map((_, i) => i < count ? '●' : '○').join('');
+                    
                     const statusText = pose.allMarkersFound
-                        ? `✓ ${count} Markers (IDs: ${pose.detectedIds.join(', ')})`
-                        : `Found ${count}/${required} (IDs: ${pose.detectedIds.join(', ')})`;
+                        ? `✓ Ready ${dots}`
+                        : `${dots} ${count}/${required}`;
                     document.getElementById('status-pill').textContent = statusText;
                     document.getElementById('status-pill').className = pose.allMarkersFound ? "locked" : "";
 
@@ -1166,13 +1204,33 @@ const App = {
                     this.drawMarkerFeedback(pose);
                 }
             } else {
-                document.getElementById('status-pill').textContent = "🔍 Looking...";
+                // No marker detected - show helpful tips after a few seconds
+                if (!this._noDetectionTime) {
+                    this._noDetectionTime = Date.now();
+                }
+                
+                const noDetectionDuration = Date.now() - this._noDetectionTime;
+                
+                if (noDetectionDuration < this.HINT_DELAY_INITIAL) {
+                    document.getElementById('status-pill').textContent = "🔍 Looking...";
+                } else if (noDetectionDuration < this.HINT_DELAY_LIGHTING) {
+                    document.getElementById('status-pill').textContent = "💡 Try moving closer";
+                } else if (noDetectionDuration < this.HINT_DELAY_GUIDE) {
+                    document.getElementById('status-pill').textContent = "💡 Check lighting";
+                } else {
+                    document.getElementById('status-pill').textContent = "💡 See marker guide";
+                }
                 document.getElementById('status-pill').className = "";
 
                 // Clear marker feedback
                 if (this.detectionMode !== 'single') {
                     this.clearMarkerFeedback();
                 }
+            }
+            
+            // Reset no detection timer when marker is found
+            if (pose) {
+                this._noDetectionTime = null;
             }
         }
     },
@@ -1208,7 +1266,7 @@ const App = {
             offsetY = (canvas.height - (video.videoHeight * scaleY)) / 2;
         }
 
-        // Draw detected markers
+        // Draw detected markers with enhanced visual feedback
         for (let id in pose.detectedMarkers) {
             const marker = pose.detectedMarkers[id];
             const center = marker.center;
@@ -1217,27 +1275,14 @@ const App = {
             const x = center.x * scaleX + offsetX;
             const y = center.y * scaleY + offsetY;
 
-            // Draw marker indicator (green circle with ID)
-            ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
-            ctx.beginPath();
-            ctx.arc(x, y, 30, 0, 2 * Math.PI);
-            ctx.fill();
-
-            ctx.strokeStyle = '#00ff00';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            // Draw marker ID
-            ctx.fillStyle = '#00ff00';
-            ctx.font = 'bold 24px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(id, x, y);
-
-            // Draw marker corners
+            // Draw outer glow effect
+            ctx.shadowColor = '#00ff00';
+            ctx.shadowBlur = 15;
+            
+            // Draw marker corners with gradient
             const corners = marker.corners;
             ctx.strokeStyle = '#00ff00';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 3;
             ctx.beginPath();
             for (let i = 0; i < 4; i++) {
                 const cx = corners.data32F[i * 2] / this.vision.scale * scaleX + offsetX;
@@ -1250,6 +1295,33 @@ const App = {
             }
             ctx.closePath();
             ctx.stroke();
+            
+            // Reset shadow for center indicator
+            ctx.shadowBlur = 0;
+
+            // Draw marker center with checkmark
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.4)';
+            ctx.beginPath();
+            ctx.arc(x, y, 35, 0, 2 * Math.PI);
+            ctx.fill();
+
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Draw checkmark or marker ID
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 28px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('✓', x, y);
+            
+            // Draw marker ID label below
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(x - 20, y + 45, 40, 24);
+            ctx.fillStyle = '#00ff00';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.fillText(`ID: ${id}`, x, y + 57);
         }
     },
 
