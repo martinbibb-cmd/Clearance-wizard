@@ -20,7 +20,7 @@ See [FUTURE_IMPROVEMENTS.md](FUTURE_IMPROVEMENTS.md) for a comprehensive roadmap
 
 ### Quick Start
 
-The application now includes OpenCV.js in the repository, so you can run it immediately without any additional downloads.
+The application now includes OpenCV.js in the repository, so you can run it immediately without any additional downloads or installations. **No Python dependencies are required** - this is a pure web application that runs in your browser.
 
 ### Running the Application
 
@@ -163,3 +163,15 @@ See [FUTURE_IMPROVEMENTS.md](FUTURE_IMPROVEMENTS.md) for:
 
 ### 💡 Contribute
 Interested in implementing any of these improvements? Open an issue or PR on GitHub!
+
+## Python Development Code (Optional)
+
+This repository includes optional Python code in the `python-dev/` directory for Visual-Inertial Odometry (VIO) research and backend development. **This Python code is NOT required to run the main web application**, which works entirely in the browser using JavaScript.
+
+The Python VIO implementation is for:
+- Research and algorithm development
+- Potential future mobile app features
+- Backend processing capabilities
+- Testing and validation
+
+See `python-dev/README.md` for installation instructions and documentation. Note that the Python code requires CMake and other system dependencies that are not needed for the web application.
