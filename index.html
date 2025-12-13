@@ -245,7 +245,8 @@
             </select>
 
             <label>Tag ID</label>
-            <input type="number" id="tag-id-input" min="0" max="586" value="0" style="margin-bottom: 15px;" placeholder="Enter Tag ID (0-586)">
+            <input type="number" id="tag-id-input" min="0" max="586" value="0" style="margin-bottom: 15px;" placeholder="Enter Tag ID">
+            <p id="tag-id-help" style="font-size: 0.75rem; color: #666; margin: -10px 0 15px 0;"></p>
 
             <label>Marker Size (mm)</label>
             <select id="tag-size-select" style="margin-bottom: 15px;">
@@ -1561,6 +1562,27 @@ const App = {
                 customContainer.classList.add('hidden');
             }
         });
+        
+        // Handle family change to update tag ID limits
+        const familySelect = document.getElementById('tag-family-select');
+        const tagIdInput = document.getElementById('tag-id-input');
+        const tagIdHelp = document.getElementById('tag-id-help');
+        
+        const updateTagIdLimit = async () => {
+            const family = familySelect.value;
+            try {
+                const response = await fetch(`./apriltag-families/${family}.json`);
+                const tagConfig = await response.json();
+                const maxId = tagConfig.codes.length - 1;
+                tagIdInput.max = maxId;
+                tagIdHelp.textContent = `Valid range: 0-${maxId}`;
+            } catch (e) {
+                tagIdHelp.textContent = 'Enter Tag ID';
+            }
+        };
+        
+        familySelect.addEventListener('change', updateTagIdLimit);
+        updateTagIdLimit(); // Set initial limit
     },
 
     hideMarkerGenerator: function() {
@@ -1595,18 +1617,16 @@ const App = {
             const response = await fetch(`./apriltag-families/${family}.json`);
             const tagConfig = await response.json();
 
-            // Create AprilTag family
-            if (typeof AprilTagFamily === 'undefined') {
-                // AprilTag library not loaded, try to load it from global scope
-                if (typeof window.AprilTagFamily !== 'undefined') {
-                    window.AprilTagFamily = window.AprilTagFamily;
-                } else {
-                    alert('AprilTag library not loaded. Please refresh the page.');
-                    return;
-                }
+            // Check if AprilTag library is loaded
+            if (typeof AprilTagFamily === 'undefined' && typeof window.AprilTagFamily === 'undefined') {
+                alert('AprilTag library not loaded. Please refresh the page.');
+                return;
             }
+            
+            // Use AprilTagFamily from global scope
+            const AprilTagFamilyClass = typeof AprilTagFamily !== 'undefined' ? AprilTagFamily : window.AprilTagFamily;
 
-            const tagFamily = new AprilTagFamily(tagConfig);
+            const tagFamily = new AprilTagFamilyClass(tagConfig);
             
             // Check if tag ID is valid for this family
             if (tagId >= tagConfig.codes.length) {
@@ -1695,9 +1715,28 @@ const App = {
         // Create a new window for printing
         const canvas = document.getElementById('marker-canvas');
         const printWindow = window.open('', '_blank');
+        
+        if (!printWindow) {
+            alert('Pop-up blocked. Please allow pop-ups to print.');
+            return;
+        }
+        
         const img = new Image();
         
         img.onload = function() {
+            // Escape HTML to prevent XSS
+            const escapeHtml = (str) => String(str).replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+            
+            const safeFamily = escapeHtml(this.currentMarker.family);
+            const safeTagId = escapeHtml(this.currentMarker.tagId);
+            const safeSize = escapeHtml(this.currentMarker.size);
+            
             printWindow.document.write(`
                 <!DOCTYPE html>
                 <html>
@@ -1713,12 +1752,12 @@ const App = {
                 <body>
                     <div class="info">
                         <h2>AprilTag Marker</h2>
-                        <p><strong>Family:</strong> ${this.currentMarker.family}</p>
-                        <p><strong>Tag ID:</strong> ${this.currentMarker.tagId}</p>
-                        <p><strong>Size:</strong> ${this.currentMarker.size}mm (measure BLACK SQUARE only)</p>
+                        <p><strong>Family:</strong> ${safeFamily}</p>
+                        <p><strong>Tag ID:</strong> ${safeTagId}</p>
+                        <p><strong>Size:</strong> ${safeSize}mm (measure BLACK SQUARE only)</p>
                     </div>
-                    <img src="${img.src}" alt="AprilTag Marker">
-                    <script>window.onload = function() { window.print(); }</script>
+                    <img src="${escapeHtml(img.src)}" alt="AprilTag Marker">
+                    <script>window.onload = function() { window.print(); }<\/script>
                 </body>
                 </html>
             `);
