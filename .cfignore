@@ -1,0 +1,19 @@
+# Cloudflare Pages ignore file
+# These files/directories should not be processed during deployment
+
+# Python development code (not needed for web app deployment)
+python-dev/
+*.py
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Git and development files
+.git/
+.github/
+.gitignore
+
+# Documentation (optional, but can be included if desired)
+# Uncomment the following lines to exclude documentation from deployment
+# *.md
+# FUTURE_IMPROVEMENTS.md
