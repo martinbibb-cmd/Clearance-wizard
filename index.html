@@ -139,6 +139,15 @@
             </details>
 
             <button class="primary" onclick="App.showMainMenu()" style="margin-bottom: 10px; font-size: 1.1rem; padding: 15px;">🚀 Get Started</button>
+            
+            <!-- Quick Links -->
+            <div style="display: flex; gap: 10px; font-size: 0.75rem; justify-content: center; color: #666;">
+                <a href="MARKER_GUIDE.md" target="_blank" style="color: var(--wb-blue);">📖 Marker Guide</a>
+                <span>|</span>
+                <a href="FUTURE_IMPROVEMENTS.md" target="_blank" style="color: var(--wb-blue);">🚀 Roadmap</a>
+                <span>|</span>
+                <a href="README.md" target="_blank" style="color: var(--wb-blue);">❓ Help</a>
+            </div>
         </div>
 
         <div id="menu-panel" class="card interactive hidden">
@@ -1190,13 +1199,33 @@ const App = {
                     this.drawMarkerFeedback(pose);
                 }
             } else {
-                document.getElementById('status-pill').textContent = "🔍 Looking...";
+                // No marker detected - show helpful tips after a few seconds
+                if (!this._noDetectionTime) {
+                    this._noDetectionTime = Date.now();
+                }
+                
+                const noDetectionDuration = Date.now() - this._noDetectionTime;
+                
+                if (noDetectionDuration < 3000) {
+                    document.getElementById('status-pill').textContent = "🔍 Looking...";
+                } else if (noDetectionDuration < 8000) {
+                    document.getElementById('status-pill').textContent = "💡 Try moving closer";
+                } else if (noDetectionDuration < 15000) {
+                    document.getElementById('status-pill').textContent = "💡 Check lighting";
+                } else {
+                    document.getElementById('status-pill').textContent = "💡 See marker guide";
+                }
                 document.getElementById('status-pill').className = "";
 
                 // Clear marker feedback
                 if (this.detectionMode !== 'single') {
                     this.clearMarkerFeedback();
                 }
+            }
+            
+            // Reset no detection timer when marker is found
+            if (pose) {
+                this._noDetectionTime = null;
             }
         }
     },
