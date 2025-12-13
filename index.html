@@ -1232,7 +1232,7 @@ const App = {
             offsetY = (canvas.height - (video.videoHeight * scaleY)) / 2;
         }
 
-        // Draw detected markers
+        // Draw detected markers with enhanced visual feedback
         for (let id in pose.detectedMarkers) {
             const marker = pose.detectedMarkers[id];
             const center = marker.center;
@@ -1241,27 +1241,14 @@ const App = {
             const x = center.x * scaleX + offsetX;
             const y = center.y * scaleY + offsetY;
 
-            // Draw marker indicator (green circle with ID)
-            ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
-            ctx.beginPath();
-            ctx.arc(x, y, 30, 0, 2 * Math.PI);
-            ctx.fill();
-
-            ctx.strokeStyle = '#00ff00';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            // Draw marker ID
-            ctx.fillStyle = '#00ff00';
-            ctx.font = 'bold 24px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(id, x, y);
-
-            // Draw marker corners
+            // Draw outer glow effect
+            ctx.shadowColor = '#00ff00';
+            ctx.shadowBlur = 15;
+            
+            // Draw marker corners with gradient
             const corners = marker.corners;
             ctx.strokeStyle = '#00ff00';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 3;
             ctx.beginPath();
             for (let i = 0; i < 4; i++) {
                 const cx = corners.data32F[i * 2] / this.vision.scale * scaleX + offsetX;
@@ -1274,6 +1261,33 @@ const App = {
             }
             ctx.closePath();
             ctx.stroke();
+            
+            // Reset shadow for center indicator
+            ctx.shadowBlur = 0;
+
+            // Draw marker center with checkmark
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.4)';
+            ctx.beginPath();
+            ctx.arc(x, y, 35, 0, 2 * Math.PI);
+            ctx.fill();
+
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Draw checkmark or marker ID
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 28px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('✓', x, y);
+            
+            // Draw marker ID label below
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(x - 20, y + 45, 40, 24);
+            ctx.fillStyle = '#00ff00';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.fillText(`ID: ${id}`, x, y + 57);
         }
     },
 

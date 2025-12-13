@@ -1,6 +1,20 @@
-# Clearance-wizard
+# Clearance Genie 🔥
 
-An AR-based clearance checking tool for boilers, radiators, and other appliances using ArUco markers.
+An AR-based clearance checking tool for boilers, radiators, and other appliances using computer vision markers.
+
+## Recent Updates
+
+- **Improved UI**: Simplified interface with visual icons and collapsible sections
+- **Better Detection Feedback**: Visual progress indicators for multi-marker detection
+- **Enhanced User Experience**: Less text-heavy, more intuitive navigation
+
+## Future Improvements
+
+See [FUTURE_IMPROVEMENTS.md](FUTURE_IMPROVEMENTS.md) for a comprehensive roadmap including:
+- **AprilTag Support**: Upgrade from ArUco to AprilTag for better accuracy and reliability
+- **Markerless Detection**: Path toward object recognition without printed markers
+- **Enhanced Feedback**: Real-time marker quality indicators
+- **Data Export**: Save and share measurement data
 
 ## Setup Instructions
 
@@ -61,24 +75,25 @@ http://localhost:8000
 
 ## Marker Detection
 
-This application uses computer vision to detect square markers for AR tracking. You need to have a printed square marker (ideally black on white background) to use the app.
+This application uses computer vision (ArUco markers) for precise AR tracking. **See [MARKER_GUIDE.md](MARKER_GUIDE.md) for comprehensive instructions.**
 
-**How to create markers:**
+### Quick Start
 
-1. **Print a simple square**: Any black square on white paper will work
-2. **Use QR codes**: QR codes work well as they're already square
-3. **Create a custom pattern**: Draw or print any high-contrast square shape
+1. **Download markers** from [ArUco Generator](https://chev.me/arucogen/)
+2. **Select dictionary**: DICT_4X4_50
+3. **Print size**: 190mm recommended (measure BLACK SQUARE only)
+4. **Print on white paper** with black ink
 
-**Recommended marker sizes:**
-- 45mm - Default setting (small marker)
-- 53mm (credit card size) - Good for close-up work
-- 148mm (A5 square) - **Recommended for better tracking**
-- 160mm-190mm (A4 sizes) - **Best for distant measurements**
+### Recommended Marker Sizes
+- 45mm - Close-up work (0.2m - 1m)
+- 90mm - Standard installations (0.5m - 2m)
+- 148mm (A5) - Better stability (0.5m - 3m) ⭐
+- 190mm (A4) - Best for distance (0.7m - 5m) ⭐⭐⭐
 
-**Why larger markers work better:**
-Larger markers (A5 or A4) provide significantly more stable tracking, especially when stepping back from the installation point. The increased pixel coverage gives the computer vision system more data to work with, reducing "jumping" or instability in the AR overlay at distance.
+**💡 Key Tip:** Larger markers = better tracking stability at distance!  
+**📏 Important:** Always measure the BLACK SQUARE AREA ONLY (exclude white border)
 
-Print the markers on white paper with a black printer for best results. The app detects the square shape using contour detection.
+For detailed guidance on marker creation, printing, positioning, and troubleshooting, see [MARKER_GUIDE.md](MARKER_GUIDE.md).
 
 ## Capturing Images
 
@@ -103,3 +118,40 @@ If you see "Loading OpenCV..." or initialization errors:
 - Requires a modern browser with WebRTC support (Chrome, Firefox, Safari, Edge)
 - Camera access is required for AR functionality
 - Works best on mobile devices with rear-facing cameras
+
+## Roadmap & Future Enhancements
+
+This project has significant potential for improvement. See [FUTURE_IMPROVEMENTS.md](FUTURE_IMPROVEMENTS.md) for detailed implementation guides, including:
+
+### 🥇 Highest Priority: AprilTag Support
+The most direct upgrade path is switching from ArUco to **AprilTag** markers:
+- **Better accuracy**: More robust pose estimation, especially at steep angles
+- **Fewer false positives**: More reliable detection in challenging conditions
+- **Industry standard**: Widely used in robotics and autonomous systems
+
+**Implementation options:**
+1. JavaScript library (client-side, maintains PWA offline capability)
+2. Python server (maximum accuracy, requires backend)
+3. Hybrid approach (progressive enhancement)
+
+### 🚀 Next Steps: Enhanced Features
+- **Real-time quality feedback**: Distance, angle, lighting indicators
+- **In-app marker generation**: Print directly from the app
+- **Measurement export**: Save data as JSON/CSV/PDF
+- **Better visual feedback**: Progressive indicators for marker detection
+
+### ✨ Future Vision: Markerless Detection
+Long-term goal of eliminating markers entirely:
+- **Object Detection (YOLO)**: Recognize appliances directly from camera
+- **Depth Sensors**: Use iPhone LiDAR or Intel RealSense for 3D measurements
+- **Structure from Motion**: Build 3D models from camera movement
+
+### 📚 For Developers
+See [FUTURE_IMPROVEMENTS.md](FUTURE_IMPROVEMENTS.md) for:
+- Code examples and implementation guides
+- Performance optimization strategies
+- Technical comparison of different approaches
+- Learning resources and tutorials
+
+### 💡 Contribute
+Interested in implementing any of these improvements? Open an issue or PR on GitHub!
