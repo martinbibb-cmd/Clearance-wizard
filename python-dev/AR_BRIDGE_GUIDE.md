@@ -209,7 +209,8 @@ bridge.close()
 ```python
 ARBridge.create_sample_client(
     port: int = 9999,
-    duration: float = 10.0
+    duration: float = 10.0,
+    host: str = '127.0.0.1'
 )
 ```
 
@@ -218,10 +219,15 @@ Create a sample UDP client to receive and display AR data. Useful for testing.
 **Parameters:**
 - `port`: Port to listen on
 - `duration`: How long to run (seconds)
+- `host`: Host address to bind to (default: '127.0.0.1' for localhost only, use '0.0.0.0' for all interfaces)
 
 **Example:**
 ```bash
+# Listen on localhost only (secure)
 python -c "from vio import ARBridge; ARBridge.create_sample_client(port=9999, duration=30)"
+
+# Listen on all interfaces (for remote connections)
+python -c "from vio import ARBridge; ARBridge.create_sample_client(port=9999, duration=30, host='0.0.0.0')"
 ```
 
 ## JSON Message Format
