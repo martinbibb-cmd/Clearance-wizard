@@ -1509,7 +1509,7 @@ class GraphicsEngine {
                 new THREE.Vector3(0, 0, 0),
                 direction.clone().multiplyScalar(axisLength)
             ]);
-            const lineMaterial = new THREE.LineBasicMaterial({ color: color, linewidth: 2 });
+            const lineMaterial = new THREE.LineBasicMaterial({ color: color });
             const line = new THREE.Line(lineGeometry, lineMaterial);
             this.calibrationAxes.add(line);
             
@@ -1560,7 +1560,8 @@ class GraphicsEngine {
                     labelCanvas.height = 64;
                     context.fillStyle = 'rgba(0, 0, 0, 0.7)';
                     context.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
-                    context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+                    const hexColor = '#' + ('000000' + color.toString(16)).slice(-6);
+                    context.fillStyle = hexColor;
                     context.font = 'bold 32px Arial';
                     context.textAlign = 'center';
                     context.textBaseline = 'middle';
@@ -1702,8 +1703,8 @@ const App = {
     updateDeviceInfo: function(pose) {
         if (!this.testingMode) return;
         
-        // Throttle updates to every 30 frames
-        this.frameCounter++;
+        // Throttle updates to every 30 frames (reset counter to prevent overflow)
+        this.frameCounter = (this.frameCounter + 1) % 30000;
         if (this.frameCounter % 30 !== 0) return;
         
         // Update position
@@ -1712,9 +1713,17 @@ const App = {
         const posZ = pose ? pose.z.toFixed(1) : 'N/A';
         document.getElementById('info-position').textContent = `X:${posX} Y:${posY} Z:${posZ}mm`;
         
-        // Update device info
-        const deviceInfo = navigator.userAgent.match(/\(([^)]+)\)/);
-        const deviceName = deviceInfo ? deviceInfo[1].split(';')[0].trim() : 'Unknown';
+        // Update device info (with fallback for various user agent formats)
+        let deviceName = 'Unknown';
+        try {
+            const deviceInfo = navigator.userAgent.match(/\(([^)]+)\)/);
+            if (deviceInfo && deviceInfo[1]) {
+                const parts = deviceInfo[1].split(';');
+                deviceName = parts[0] ? parts[0].trim() : 'Unknown';
+            }
+        } catch (e) {
+            console.warn('Error parsing user agent:', e);
+        }
         document.getElementById('info-device').textContent = deviceName;
         
         // Update screen info
