@@ -275,7 +275,7 @@ class ARBridge:
         return False
     
     @staticmethod
-    def create_sample_client(port: int = 9999, duration: float = 10.0):
+    def create_sample_client(port: int = 9999, duration: float = 10.0, host: str = '127.0.0.1'):
         """
         Create a sample UDP client to receive and display AR data.
         
@@ -287,17 +287,20 @@ class ARBridge:
             Port to listen on. Default is 9999.
         duration : float, optional
             How long to run the client in seconds. Default is 10.0.
+        host : str, optional
+            Host address to bind to. Default is '127.0.0.1' for localhost only.
+            Use '0.0.0.0' to listen on all interfaces (less secure).
         """
         import time
         
-        print(f"Starting sample AR client on port {port}")
+        print(f"Starting sample AR client on {host}:{port}")
         print(f"Listening for {duration} seconds...")
         print("-" * 60)
         
         # Create UDP socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(('0.0.0.0', port))
+        sock.bind((host, port))
         sock.settimeout(1.0)  # 1 second timeout
         
         start_time = time.time()
