@@ -45,11 +45,12 @@ http://localhost:8000
 ## Features
 
 - **Progressive Web App (PWA)**: Install on your device for offline access and app-like experience
-- AR-based clearance visualization using ArUco markers
+- AR-based clearance visualization using ArUco and AprilTag markers
 - Support for multiple appliance types (boilers, radiators, cylinders, flues)
 - Custom marker and appliance sizing
 - Real-time camera tracking and overlay
 - **Direct gallery saving**: Capture images and save directly to your device's photo gallery
+- **🔬 Testing Mode**: Visual debugging with calibrated 3D axes for cross-device validation (see [TESTING_MODE_GUIDE.md](TESTING_MODE_GUIDE.md))
 
 ## Installing as a PWA
 
@@ -103,6 +104,28 @@ This application uses computer vision markers for precise AR tracking. **See [MA
 **📏 Important:** Always measure the BLACK SQUARE AREA ONLY (exclude white border)
 
 For detailed guidance on marker creation, printing, positioning, and troubleshooting, see [MARKER_GUIDE.md](MARKER_GUIDE.md).
+
+## Testing Mode 🔬
+
+Testing Mode provides visual debugging for AR measurement validation and cross-device calibration:
+
+### Quick Start
+Enable Testing Mode in three ways:
+1. **URL Parameter**: Add `?testMode=true` to the URL
+2. **Welcome Panel**: Check "🔬 Enable Testing Mode" before starting
+3. **Advanced Settings**: Toggle in menu's Advanced Settings section
+
+### Features
+- **3D Calibration Axes**: Color-coded axes (X=red, Y=green, Z=blue) with tick marks every 100mm
+- **Distance Labels**: Labels every 200mm showing measurements in centimeters
+- **Device Overlay**: Real-time position, device info, screen resolution, and marker configuration
+- **Cross-Device Validation**: Compare measurements across multiple devices for accuracy verification
+
+### Documentation
+- **[TESTING_MODE_GUIDE.md](TESTING_MODE_GUIDE.md)**: Complete user guide with coordinate system and troubleshooting
+- **[TESTING_MODE_QUICKREF.md](TESTING_MODE_QUICKREF.md)**: API reference and console commands
+- **[TESTING_MODE_VERIFICATION.md](TESTING_MODE_VERIFICATION.md)**: QA checklist for cross-device testing
+- **[TESTING_MODE_IMPLEMENTATION_SUMMARY.md](TESTING_MODE_IMPLEMENTATION_SUMMARY.md)**: Technical architecture details
 
 ## Capturing Images
 
