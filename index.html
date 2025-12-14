@@ -153,7 +153,7 @@
             <!-- Testing Mode Toggle -->
             <div style="background: #f0f7ff; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0;">
-                    <input type="checkbox" id="testing-mode-toggle" onchange="App.toggleTestingMode()" style="width: auto; margin: 0;">
+                    <input type="checkbox" id="testing-mode-toggle" onchange="App.toggleTestingMode(event)" style="width: auto; margin: 0;">
                     <span style="font-size: 0.85rem; color: #333;">
                         <strong>🔬 Testing Mode</strong> - Show calibrated axes for debugging
                     </span>
@@ -255,7 +255,7 @@
                     <input type="number" id="manual-depth-offset" min="-1000" max="1000" step="10" value="0" placeholder="Fine-tune depth" aria-label="Manual depth adjustment">
                     
                     <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-top: 10px;">
-                        <input type="checkbox" id="testing-mode-toggle-menu" onchange="App.toggleTestingMode()" style="width: auto; margin: 0;">
+                        <input type="checkbox" id="testing-mode-toggle-menu" onchange="App.toggleTestingMode(event)" style="width: auto; margin: 0;">
                         <span style="font-size: 0.8rem; color: #666;">
                             🔬 Testing Mode (Show calibrated axes)
                         </span>
@@ -1190,11 +1190,12 @@ class GraphicsEngine {
 
         this.calibrationAxes = new THREE.Group();
         
-        // Axis length and tick spacing (in mm)
-        const axisLength = 1000; // 1 meter
-        const tickSpacing = 100;  // 10cm intervals
-        const labelInterval = 2;  // Label every N ticks (2 = every 200mm)
-        const tickHeight = 20;    // Height of tick marks
+        // Axis length and tick spacing (all measurements in mm)
+        const axisLength = 1000;      // 1 meter total length
+        const tickSpacing = 100;      // 100mm (10cm) between ticks
+        const labelInterval = 2;      // Label every N ticks (2 = every 200mm/20cm)
+        const tickHeight = 20;        // Height of tick marks
+        const MM_TO_CM = 10;          // Conversion factor for labels
         
         // Colors for each axis (standard convention: X=red, Y=green, Z=blue)
         const colors = {
@@ -1283,7 +1284,7 @@ class GraphicsEngine {
                     ctx.font = 'bold 32px Arial';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(`${i/10}cm`, 64, 32);
+                    ctx.fillText(`${i/MM_TO_CM}cm`, 64, 32);
                     
                     const texture = new THREE.CanvasTexture(canvas);
                     const labelMaterial = new THREE.MeshBasicMaterial({ 
@@ -1465,15 +1466,20 @@ const App = {
     },
 
     // Toggle testing mode on/off
-    toggleTestingMode: function() {
+    toggleTestingMode: function(event) {
         const toggleWelcome = document.getElementById('testing-mode-toggle');
         const toggleMenu = document.getElementById('testing-mode-toggle-menu');
         
-        // Get state from whichever checkbox exists and was clicked
-        // Prefer welcome toggle if both exist, otherwise use menu toggle
-        this.testingMode = (toggleWelcome && toggleWelcome.checked) || (toggleMenu && toggleMenu.checked);
+        // Determine which checkbox was clicked and get its state
+        // This ensures we always use the checkbox that the user just interacted with
+        if (event && event.target) {
+            this.testingMode = event.target.checked;
+        } else {
+            // Fallback: use whichever checkbox is currently checked
+            this.testingMode = (toggleWelcome && toggleWelcome.checked) || (toggleMenu && toggleMenu.checked);
+        }
         
-        // Sync both checkboxes
+        // Sync both checkboxes to the new state
         if (toggleWelcome) toggleWelcome.checked = this.testingMode;
         if (toggleMenu) toggleMenu.checked = this.testingMode;
         
