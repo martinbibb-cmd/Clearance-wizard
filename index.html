@@ -86,6 +86,36 @@
         .btn-round { width: 60px; height: 60px; border-radius: 50%; border: none; font-size: 1.5rem; background: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; }
         
         #touch-pad { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; touch-action: none; }
+        
+        #device-info-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            line-height: 1.6;
+            z-index: 15;
+            max-width: 280px;
+            pointer-events: none;
+        }
+        
+        #device-info-overlay.hidden {
+            display: none;
+        }
+        
+        .info-label {
+            color: #aaa;
+            font-weight: 600;
+        }
+        
+        .info-value {
+            color: #0f0;
+            margin-left: 5px;
+        }
     </style>
 </head>
 <body>
@@ -94,6 +124,17 @@
     <canvas id="ar-layer"></canvas>
     <canvas id="marker-feedback-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none;"></canvas>
     <div id="touch-pad"></div>
+    
+    <!-- Device Info Overlay for Testing Mode -->
+    <div id="device-info-overlay" class="hidden">
+        <div><span class="info-label">Position:</span><span class="info-value" id="info-position">N/A</span></div>
+        <div><span class="info-label">Device:</span><span class="info-value" id="info-device">N/A</span></div>
+        <div><span class="info-label">Screen:</span><span class="info-value" id="info-screen">N/A</span></div>
+        <div><span class="info-label">Pixel Ratio:</span><span class="info-value" id="info-pixel-ratio">N/A</span></div>
+        <div><span class="info-label">Marker Size:</span><span class="info-value" id="info-marker-size">N/A</span></div>
+        <div><span class="info-label">Marker Type:</span><span class="info-value" id="info-marker-type">N/A</span></div>
+        <div><span class="info-label">Detection:</span><span class="info-value" id="info-detection-mode">N/A</span></div>
+    </div>
 
     <div id="ui-layer">
         <div id="status-pill" class="hidden">Initializing...</div>
@@ -141,6 +182,12 @@
                     <p style="margin: 5px 0;">📏 <strong>Measure:</strong> BLACK SQUARE ONLY (no white border)</p>
                 </div>
             </details>
+
+            <!-- Testing Mode Toggle -->
+            <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; font-size: 0.9rem; cursor: pointer;">
+                <input type="checkbox" id="testing-mode-checkbox-welcome" onchange="App.toggleTestingMode(event)" style="width: auto; margin: 0;">
+                <span>🔬 Enable Testing Mode (show calibration axes)</span>
+            </label>
 
             <button class="primary" onclick="App.showMainMenu()" style="margin-bottom: 10px; font-size: 1.1rem; padding: 15px;">🚀 Get Started</button>
             
@@ -237,6 +284,11 @@
                 <div style="margin-top: 10px;">
                     <label style="font-size: 0.8rem;">Depth Offset (mm)</label>
                     <input type="number" id="manual-depth-offset" min="-1000" max="1000" step="10" value="0" placeholder="Fine-tune depth" aria-label="Manual depth adjustment">
+                    
+                    <label style="display: flex; align-items: center; gap: 10px; margin-top: 15px; font-size: 0.8rem; cursor: pointer;">
+                        <input type="checkbox" id="testing-mode-checkbox-advanced" onchange="App.toggleTestingMode(event)" style="width: auto; margin: 0;">
+                        <span>🔬 Testing Mode (calibration axes)</span>
+                    </label>
                 </div>
             </details>
 
@@ -1216,6 +1268,7 @@ class GraphicsEngine {
         this.scene.add(this.root);
         this.stencil = null;
         this.parallaxEnabled = true;
+        this.calibrationAxes = null;
         
         // Smoothing factors for stable AR tracking
         this.POSITION_SMOOTH_FACTOR = 0.2;  // Position interpolation (0-1, higher = faster response)
@@ -1425,6 +1478,115 @@ class GraphicsEngine {
         this.root.quaternion.slerp(targetQuaternion, this.ROTATION_SMOOTH_FACTOR);
     }
 
+    showCalibrationAxes() {
+        if (this.calibrationAxes) {
+            this.root.remove(this.calibrationAxes);
+        }
+        
+        const axisLength = 1000;      // 1m per axis
+        const tickSpacing = 100;      // 100mm intervals
+        const labelInterval = 2;      // Label every 200mm
+        const MM_TO_CM = 10;          // Unit conversion
+        
+        this.calibrationAxes = new THREE.Group();
+        
+        // Create origin sphere (yellow)
+        const originGeometry = new THREE.SphereGeometry(15, 16, 16);
+        const originMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const originSphere = new THREE.Mesh(originGeometry, originMaterial);
+        this.calibrationAxes.add(originSphere);
+        
+        // Create axes with standard colors: X=red, Y=green, Z=blue
+        const axes = [
+            { axis: 'X', color: 0xff0000, direction: new THREE.Vector3(1, 0, 0) },
+            { axis: 'Y', color: 0x00ff00, direction: new THREE.Vector3(0, 1, 0) },
+            { axis: 'Z', color: 0x0000ff, direction: new THREE.Vector3(0, 0, 1) }
+        ];
+        
+        axes.forEach(({ axis, color, direction }) => {
+            // Create main axis line
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                direction.clone().multiplyScalar(axisLength)
+            ]);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: color, linewidth: 2 });
+            const line = new THREE.Line(lineGeometry, lineMaterial);
+            this.calibrationAxes.add(line);
+            
+            // Create arrow cone at the end
+            const coneGeometry = new THREE.ConeGeometry(10, 30, 8);
+            const coneMaterial = new THREE.MeshBasicMaterial({ color: color });
+            const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+            const conePosition = direction.clone().multiplyScalar(axisLength);
+            cone.position.copy(conePosition);
+            
+            // Orient cone to point along axis
+            if (axis === 'X') {
+                cone.rotation.z = -Math.PI / 2;
+            } else if (axis === 'Z') {
+                cone.rotation.x = Math.PI / 2;
+            }
+            this.calibrationAxes.add(cone);
+            
+            // Create tick marks and labels
+            for (let i = 1; i * tickSpacing <= axisLength; i++) {
+                const tickPosition = direction.clone().multiplyScalar(i * tickSpacing);
+                const tickSize = (i % labelInterval === 0) ? 20 : 10;
+                
+                // Create tick mark (perpendicular plane)
+                const tickGeometry = new THREE.PlaneGeometry(tickSize, tickSize);
+                const tickMaterial = new THREE.MeshBasicMaterial({ 
+                    color: color, 
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                const tick = new THREE.Mesh(tickGeometry, tickMaterial);
+                tick.position.copy(tickPosition);
+                
+                // Orient tick perpendicular to axis
+                if (axis === 'X') {
+                    tick.rotation.y = Math.PI / 2;
+                } else if (axis === 'Y') {
+                    tick.rotation.x = Math.PI / 2;
+                }
+                this.calibrationAxes.add(tick);
+                
+                // Add label every 200mm
+                if (i % labelInterval === 0) {
+                    const labelCanvas = document.createElement('canvas');
+                    const context = labelCanvas.getContext('2d');
+                    labelCanvas.width = 128;
+                    labelCanvas.height = 64;
+                    context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    context.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
+                    context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+                    context.font = 'bold 32px Arial';
+                    context.textAlign = 'center';
+                    context.textBaseline = 'middle';
+                    const distanceInCm = (i * tickSpacing) / MM_TO_CM;
+                    context.fillText(`${distanceInCm}cm`, 64, 32);
+                    
+                    const labelTexture = new THREE.CanvasTexture(labelCanvas);
+                    const labelMaterial = new THREE.SpriteMaterial({ map: labelTexture });
+                    const label = new THREE.Sprite(labelMaterial);
+                    label.position.copy(tickPosition);
+                    label.scale.set(60, 30, 1);
+                    this.calibrationAxes.add(label);
+                }
+            }
+        });
+        
+        this.root.add(this.calibrationAxes);
+    }
+    
+    hideCalibrationAxes() {
+        if (this.calibrationAxes) {
+            this.root.remove(this.calibrationAxes);
+            this.calibrationAxes = null;
+        }
+    }
+
     render() { this.renderer.render(this.scene, this.camera); }
 }
 
@@ -1441,6 +1603,8 @@ const App = {
     locked: false,
     cvReady: false,
     loadTimeoutId: null, // Timer to track long initialization
+    testingMode: false,
+    frameCounter: 0,
     
     // Contextual hint timing (milliseconds)
     HINT_DELAY_INITIAL: 3000,  // "Try moving closer"
@@ -1449,6 +1613,9 @@ const App = {
 
     onCvLoaded: function() {
         console.log("OpenCV script file loaded successfully. Starting internal initialization check.");
+        
+        // Initialize testing mode from localStorage and URL params
+        this.initTestingMode();
         
         // Start a timeout. If initialization is not complete after 10 seconds, assume failure.
         this.loadTimeoutId = setTimeout(() => {
@@ -1482,6 +1649,91 @@ const App = {
             }
         };
         checkCvReady();
+    },
+    
+    initTestingMode: function() {
+        // Check URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlTestMode = urlParams.get('testMode') === 'true';
+        
+        // Check localStorage
+        const storedTestMode = localStorage.getItem('testingMode') === 'true';
+        
+        // URL parameter takes precedence
+        this.testingMode = urlTestMode || storedTestMode;
+        
+        // Sync UI checkboxes
+        const welcomeCheckbox = document.getElementById('testing-mode-checkbox-welcome');
+        const advancedCheckbox = document.getElementById('testing-mode-checkbox-advanced');
+        
+        if (welcomeCheckbox) welcomeCheckbox.checked = this.testingMode;
+        if (advancedCheckbox) advancedCheckbox.checked = this.testingMode;
+        
+        console.log(`Testing Mode initialized: ${this.testingMode}`);
+    },
+    
+    toggleTestingMode: function(event) {
+        this.testingMode = event.target.checked;
+        
+        // Persist to localStorage
+        localStorage.setItem('testingMode', this.testingMode);
+        
+        // Sync all checkboxes
+        const welcomeCheckbox = document.getElementById('testing-mode-checkbox-welcome');
+        const advancedCheckbox = document.getElementById('testing-mode-checkbox-advanced');
+        
+        if (welcomeCheckbox) welcomeCheckbox.checked = this.testingMode;
+        if (advancedCheckbox) advancedCheckbox.checked = this.testingMode;
+        
+        // Toggle visibility if graphics engine exists
+        if (this.graphics) {
+            if (this.testingMode) {
+                this.graphics.showCalibrationAxes();
+                document.getElementById('device-info-overlay').classList.remove('hidden');
+            } else {
+                this.graphics.hideCalibrationAxes();
+                document.getElementById('device-info-overlay').classList.add('hidden');
+            }
+        }
+        
+        console.log(`Testing Mode: ${this.testingMode ? 'ON' : 'OFF'}`);
+    },
+    
+    updateDeviceInfo: function(pose) {
+        if (!this.testingMode) return;
+        
+        // Throttle updates to every 30 frames
+        this.frameCounter++;
+        if (this.frameCounter % 30 !== 0) return;
+        
+        // Update position
+        const posX = pose ? pose.x.toFixed(1) : 'N/A';
+        const posY = pose ? pose.y.toFixed(1) : 'N/A';
+        const posZ = pose ? pose.z.toFixed(1) : 'N/A';
+        document.getElementById('info-position').textContent = `X:${posX} Y:${posY} Z:${posZ}mm`;
+        
+        // Update device info
+        const deviceInfo = navigator.userAgent.match(/\(([^)]+)\)/);
+        const deviceName = deviceInfo ? deviceInfo[1].split(';')[0].trim() : 'Unknown';
+        document.getElementById('info-device').textContent = deviceName;
+        
+        // Update screen info
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+        document.getElementById('info-screen').textContent = `${screenWidth}x${screenHeight}`;
+        
+        // Update pixel ratio
+        document.getElementById('info-pixel-ratio').textContent = window.devicePixelRatio.toFixed(2);
+        
+        // Update marker config
+        const markerSize = this.detectionMode === 'single' ? this.markerSize : this.multiMarkerSize;
+        document.getElementById('info-marker-size').textContent = `${markerSize}mm`;
+        
+        const markerTypeName = this.markerType === 'apriltag' ? 'AprilTag' : 'ArUco';
+        document.getElementById('info-marker-type').textContent = markerTypeName;
+        
+        const detectionModeName = this.detectionMode === 'single' ? 'Single' : this.detectionMode.toUpperCase();
+        document.getElementById('info-detection-mode').textContent = detectionModeName;
     },
     
     // Handles failures if the script was downloaded but initialization stalled
@@ -1671,6 +1923,13 @@ const App = {
 
         this.graphics = new GraphicsEngine(document.getElementById('ar-layer'));
         this.graphics.setStencil(data);
+        
+        // Show calibration axes if testing mode is enabled
+        if (this.testingMode) {
+            this.graphics.showCalibrationAxes();
+            document.getElementById('device-info-overlay').classList.remove('hidden');
+        }
+        
         this.setupTouch();
         await this.vision.init(video, this.markerType);
         this.loop();
@@ -1735,8 +1994,12 @@ const App = {
                     // Draw marker feedback on canvas (always show detected markers)
                     this.drawMarkerFeedback(pose);
                 }
+                
+                // Update device info overlay if testing mode is enabled
+                this.updateDeviceInfo(pose);
             } else {
                 // No marker detected - show helpful tips after a few seconds
+                this.updateDeviceInfo(null);
                 if (!this._noDetectionTime) {
                     this._noDetectionTime = Date.now();
                 }
