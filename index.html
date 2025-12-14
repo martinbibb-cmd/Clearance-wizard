@@ -1193,6 +1193,7 @@ class GraphicsEngine {
         // Axis length and tick spacing (in mm)
         const axisLength = 1000; // 1 meter
         const tickSpacing = 100;  // 10cm intervals
+        const labelInterval = 2;  // Label every N ticks (2 = every 200mm)
         const tickHeight = 20;    // Height of tick marks
         
         // Colors for each axis (standard convention: X=red, Y=green, Z=blue)
@@ -1218,7 +1219,6 @@ class GraphicsEngine {
             const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
             const lineMaterial = new THREE.LineBasicMaterial({ 
                 color: axis.color,
-                linewidth: 3,
                 opacity: 0.8,
                 transparent: true
             });
@@ -1272,7 +1272,7 @@ class GraphicsEngine {
                 this.calibrationAxes.add(tick);
                 
                 // Add label using a small plane with canvas texture
-                if (i % (tickSpacing * 2) === 0) { // Label every 200mm
+                if (i % (tickSpacing * labelInterval) === 0) { // Label based on interval
                     const canvas = document.createElement('canvas');
                     canvas.width = 128;
                     canvas.height = 64;
@@ -1469,8 +1469,9 @@ const App = {
         const toggleWelcome = document.getElementById('testing-mode-toggle');
         const toggleMenu = document.getElementById('testing-mode-toggle-menu');
         
-        // Get state from whichever checkbox was clicked
-        this.testingMode = toggleWelcome ? toggleWelcome.checked : toggleMenu.checked;
+        // Get state from whichever checkbox exists and was clicked
+        // Prefer welcome toggle if both exist, otherwise use menu toggle
+        this.testingMode = (toggleWelcome && toggleWelcome.checked) || (toggleMenu && toggleMenu.checked);
         
         // Sync both checkboxes
         if (toggleWelcome) toggleWelcome.checked = this.testingMode;
@@ -1507,17 +1508,6 @@ const App = {
         const content = document.getElementById('device-info-content');
         if (!content) return;
         
-        const deviceInfo = {
-            userAgent: navigator.userAgent,
-            platform: navigator.platform,
-            screenWidth: window.screen.width,
-            screenHeight: window.screen.height,
-            devicePixelRatio: window.devicePixelRatio,
-            markerSize: this.markerSize,
-            markerType: this.markerType,
-            detectionMode: this.detectionMode
-        };
-        
         // Try to extract device model from userAgent
         let deviceModel = 'Unknown';
         const ua = navigator.userAgent;
@@ -1536,15 +1526,24 @@ const App = {
             deviceModel = 'Mac';
         }
         
-        content.innerHTML = `
-            <div style="margin-bottom: 5px;"><strong>Device:</strong> ${deviceModel}</div>
-            <div style="margin-bottom: 5px;"><strong>Screen:</strong> ${deviceInfo.screenWidth}×${deviceInfo.screenHeight}</div>
-            <div style="margin-bottom: 5px;"><strong>Pixel Ratio:</strong> ${deviceInfo.devicePixelRatio}×</div>
-            <div style="margin-bottom: 5px;"><strong>Marker Size:</strong> ${deviceInfo.markerSize}mm</div>
-            <div style="margin-bottom: 5px;"><strong>Marker Type:</strong> ${deviceInfo.markerType}</div>
-            <div style="margin-bottom: 5px;"><strong>Detection Mode:</strong> ${deviceInfo.detectionMode}</div>
-            ${this.graphics && this.graphics.root ? `<div style="margin-bottom: 5px; color: #00ff00;"><strong>Position:</strong> (${this.graphics.root.position.x.toFixed(1)}, ${this.graphics.root.position.y.toFixed(1)}, ${this.graphics.root.position.z.toFixed(1)})mm</div>` : ''}
-        `;
+        // Build HTML content in sections for better readability
+        const deviceSection = [
+            `<div style="margin-bottom: 5px;"><strong>Device:</strong> ${deviceModel}</div>`,
+            `<div style="margin-bottom: 5px;"><strong>Screen:</strong> ${window.screen.width}×${window.screen.height}</div>`,
+            `<div style="margin-bottom: 5px;"><strong>Pixel Ratio:</strong> ${window.devicePixelRatio}×</div>`
+        ].join('');
+        
+        const markerSection = [
+            `<div style="margin-bottom: 5px;"><strong>Marker Size:</strong> ${this.markerSize}mm</div>`,
+            `<div style="margin-bottom: 5px;"><strong>Marker Type:</strong> ${this.markerType}</div>`,
+            `<div style="margin-bottom: 5px;"><strong>Detection Mode:</strong> ${this.detectionMode}</div>`
+        ].join('');
+        
+        const positionSection = this.graphics && this.graphics.root 
+            ? `<div style="margin-bottom: 5px; color: #00ff00;"><strong>Position:</strong> (${this.graphics.root.position.x.toFixed(1)}, ${this.graphics.root.position.y.toFixed(1)}, ${this.graphics.root.position.z.toFixed(1)})mm</div>`
+            : '';
+        
+        content.innerHTML = deviceSection + markerSection + positionSection;
     },
 
     // Show main menu from welcome screen
