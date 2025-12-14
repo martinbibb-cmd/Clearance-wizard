@@ -395,6 +395,9 @@ class VisionSystem {
         
         // Initialize camera intrinsic matrix for solvePnP
         // Using pinhole camera model with 60 degree vertical FOV
+        // NOTE: This is an approximation for typical mobile cameras
+        // For better accuracy, perform camera calibration to get actual intrinsics
+        // Different devices may have slightly different FOV (typically 50-70 degrees)
         const vFovRad = 60 * Math.PI / 180;
         const focal = (video.videoHeight / 2) / Math.tan(vFovRad / 2);
         const cx = video.videoWidth / 2;
@@ -618,22 +621,25 @@ class VisionSystem {
     _computePoseFromCorners(corners, markerSize) {
         try {
             // Define 3D object points for the marker (in marker's coordinate system)
-            // Marker is centered at origin, lying in XY plane
+            // Marker is centered at origin, lying in XY plane (Z=0)
+            // Corner order matches detection: [0]=bottom-left, [1]=bottom-right, [2]=top-right, [3]=top-left
+            // This order is consistent with both ArUco and AprilTag detection outputs
             const halfSize = markerSize / 2.0;
             const objectPoints = cv.matFromArray(4, 1, cv.CV_32FC3, [
-                -halfSize, -halfSize, 0,  // Bottom-left
-                 halfSize, -halfSize, 0,  // Bottom-right
-                 halfSize,  halfSize, 0,  // Top-right
-                -halfSize,  halfSize, 0   // Top-left
+                -halfSize, -halfSize, 0,  // Corner 0: Bottom-left
+                 halfSize, -halfSize, 0,  // Corner 1: Bottom-right
+                 halfSize,  halfSize, 0,  // Corner 2: Top-right
+                -halfSize,  halfSize, 0   // Corner 3: Top-left
             ]);
             
             // Convert image points to OpenCV Mat
             // Corners are in screen space, need to be in original video resolution
+            // Order must match objectPoints for correct correspondence
             const imagePoints = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                corners[0].x, corners[0].y,
-                corners[1].x, corners[1].y,
-                corners[2].x, corners[2].y,
-                corners[3].x, corners[3].y
+                corners[0].x, corners[0].y,  // Bottom-left in image
+                corners[1].x, corners[1].y,  // Bottom-right in image
+                corners[2].x, corners[2].y,  // Top-right in image
+                corners[3].x, corners[3].y   // Top-left in image
             ]);
             
             // Solve PnP to get rotation and translation
@@ -1210,6 +1216,10 @@ class GraphicsEngine {
         this.scene.add(this.root);
         this.stencil = null;
         this.parallaxEnabled = true;
+        
+        // Smoothing factors for stable AR tracking
+        this.POSITION_SMOOTH_FACTOR = 0.2;  // Position interpolation (0-1, higher = faster response)
+        this.ROTATION_SMOOTH_FACTOR = 0.15; // Rotation interpolation (0-1, higher = faster response)
     }
 
     setStencil(data) {
@@ -1406,15 +1416,13 @@ class GraphicsEngine {
         );
         
         // Smoothly interpolate to new transformation
-        const smoothFactor = 0.2;
-        
         // Update position with smoothing
-        this.root.position.lerp(translationThree, smoothFactor);
+        this.root.position.lerp(translationThree, this.POSITION_SMOOTH_FACTOR);
         
-        // Update rotation with smoothing
+        // Update rotation with smoothing (slightly slower for more stable rotation)
         const targetQuaternion = new THREE.Quaternion();
         targetQuaternion.setFromRotationMatrix(rotMatrix);
-        this.root.quaternion.slerp(targetQuaternion, smoothFactor * 0.75);
+        this.root.quaternion.slerp(targetQuaternion, this.ROTATION_SMOOTH_FACTOR);
     }
 
     render() { this.renderer.render(this.scene, this.camera); }
@@ -1681,6 +1689,8 @@ const App = {
                 // Update position with smooth interpolation (only if not partial detection)
                 if (!pose.partialDetection) {
                     // If we have a transformation matrix from solvePnP, use it for accurate plane alignment
+                    // Note: parallaxEnabled flag controls whether rotation/orientation tracking is enabled
+                    // This applies to both transformation matrix (full 3D alignment) and simple rotation
                     if (pose.transformMatrix && this.graphics.parallaxEnabled) {
                         this.graphics.applyTransformationMatrix(pose.transformMatrix, this.manualDepthOffset);
                     } else {
