@@ -4,6 +4,7 @@ An AR-based clearance checking tool for boilers, radiators, and other appliances
 
 ## Recent Updates
 
+- **🔬 Testing Mode**: New calibrated axis visualization for debugging and cross-device validation
 - **Improved UI**: Simplified interface with visual icons and collapsible sections
 - **Better Detection Feedback**: Visual progress indicators for multi-marker detection
 - **Enhanced User Experience**: Less text-heavy, more intuitive navigation
@@ -50,6 +51,7 @@ http://localhost:8000
 - Custom marker and appliance sizing
 - Real-time camera tracking and overlay
 - **Direct gallery saving**: Capture images and save directly to your device's photo gallery
+- **🔬 Testing Mode**: Calibrated 3D axes for debugging and cross-device validation (see [TESTING_MODE_GUIDE.md](TESTING_MODE_GUIDE.md))
 
 ## Installing as a PWA
 
@@ -112,6 +114,41 @@ The app includes an image capture feature with smart saving:
 - **On other devices**: The image will be downloaded automatically to your default downloads folder.
 
 The captured image includes both the camera feed and the AR overlay, showing the complete clearance visualization.
+
+## Testing Mode 🔬
+
+For debugging, validation, and cross-device calibration, the application includes a **Testing Mode** that displays:
+
+- **Calibrated 3D Axes**: Visual representation of X (red), Y (green), and Z (blue) axes
+- **Tick Marks & Labels**: Measurements every 10cm with labels every 20cm
+- **Device Information**: Real-time display of device specs and current position
+- **Origin Marker**: Yellow sphere at (0,0,0) aligned with the detected marker
+
+### How to Enable
+
+**Option 1 - URL Parameter** (quick testing):
+```
+http://localhost:8000/?testMode=true
+```
+
+**Option 2 - UI Toggle** (persistent):
+- Check "🔬 Testing Mode" on welcome screen, or
+- Enable in Advanced Settings during setup
+
+**Option 3 - Console** (developer testing):
+```javascript
+App.testingMode = true;
+App.toggleTestingMode();
+```
+
+### Use Cases
+
+- **Verify measurement accuracy** with physical ruler/tape
+- **Cross-device calibration** to ensure consistency
+- **Debug positioning issues** with real-time coordinate display
+- **Document device-specific behavior** for troubleshooting
+
+For comprehensive documentation, see **[TESTING_MODE_GUIDE.md](TESTING_MODE_GUIDE.md)**
 
 ## Troubleshooting
 
