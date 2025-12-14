@@ -377,7 +377,7 @@ class VisionSystem {
         this.apriltagDetector = null;
         
         // Camera intrinsics for solvePnP (default values for typical mobile camera)
-        // Field of view: 60 degrees vertical
+        // Field of view: 60 degrees (vertical FOV)
         this.cameraMatrix = null;
         this.distCoeffs = null;
     }
@@ -1689,8 +1689,9 @@ const App = {
                 // Update position with smooth interpolation (only if not partial detection)
                 if (!pose.partialDetection) {
                     // If we have a transformation matrix from solvePnP, use it for accurate plane alignment
-                    // Note: parallaxEnabled flag controls whether rotation/orientation tracking is enabled
-                    // This applies to both transformation matrix (full 3D alignment) and simple rotation
+                    // Note: parallaxEnabled flag controls 3D orientation tracking (both transformation matrix and rotation)
+                    // When enabled: uses full 3D transformation with plane alignment
+                    // When disabled: uses only position (x,y,z) without rotation
                     if (pose.transformMatrix && this.graphics.parallaxEnabled) {
                         this.graphics.applyTransformationMatrix(pose.transformMatrix, this.manualDepthOffset);
                     } else {
