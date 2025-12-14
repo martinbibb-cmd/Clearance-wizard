@@ -765,6 +765,21 @@ class VisionSystem {
             requiredCount: requiredCount,
             allMarkersFound: detections.length >= requiredCount
         };
+        
+        // Compute transformation matrix from first marker for plane alignment
+        if (detections.length > 0) {
+            const corners = detections[0].cornersPx.map(c => ({
+                x: c.x * (1 / this.scale),
+                y: c.y * (1 / this.scale)
+            }));
+            const poseMatrix = this._computePoseFromCorners(corners, markerSize);
+            
+            if (poseMatrix) {
+                pose.transformMatrix = poseMatrix.transformMatrix;
+                pose.rotationMatrix = poseMatrix.rotation;
+                pose.translationVector = poseMatrix.translation;
+            }
+        }
 
         return pose;
     }
@@ -979,7 +994,28 @@ class VisionSystem {
             rotation = this._getRotationFromCorners(markers[detectedIds[0]].corners);
         }
 
-        return { x, y, z, rotation };
+        const pose = { x, y, z, rotation };
+        
+        // Compute transformation matrix from first marker for plane alignment
+        if (detectedIds.length > 0) {
+            const firstMarker = markers[detectedIds[0]];
+            const cornerArray = [];
+            for (let i = 0; i < 4; i++) {
+                cornerArray.push({
+                    x: firstMarker.corners.data32F[i * 2] / this.scale,
+                    y: firstMarker.corners.data32F[i * 2 + 1] / this.scale
+                });
+            }
+            const poseMatrix = this._computePoseFromCorners(cornerArray, markerSize);
+            
+            if (poseMatrix) {
+                pose.transformMatrix = poseMatrix.transformMatrix;
+                pose.rotationMatrix = poseMatrix.rotation;
+                pose.translationVector = poseMatrix.translation;
+            }
+        }
+        
+        return pose;
     }
 
     _sortMarkersByPosition(markers, detectedIds) {
@@ -1308,7 +1344,7 @@ class GraphicsEngine {
     /**
      * Apply transformation matrix from solvePnP to align AR objects to AprilTag plane
      * This ensures all rendered elements sit properly on the detected marker's plane
-     * @param {Array} transformMatrix - 4x4 transformation matrix in column-major order
+     * @param {Array} transformMatrix - 4x4 transformation matrix in row-major order
      * @param {number} depthOffset - Manual depth offset in mm
      */
     applyTransformationMatrix(transformMatrix, depthOffset = 0) {
@@ -1316,7 +1352,7 @@ class GraphicsEngine {
         // We need camera to marker (inverse) for rendering
         
         // Extract rotation matrix (3x3) and translation vector from 4x4 matrix
-        // transformMatrix is in column-major order: [R00, R10, R20, Tx, R01, R11, R21, Ty, R02, R12, R22, Tz, 0, 0, 0, 1]
+        // transformMatrix is in row-major order: [R00, R01, R02, Tx, R10, R11, R12, Ty, R20, R21, R22, Tz, 0, 0, 0, 1]
         const R = [
             transformMatrix[0], transformMatrix[1], transformMatrix[2],
             transformMatrix[4], transformMatrix[5], transformMatrix[6],
