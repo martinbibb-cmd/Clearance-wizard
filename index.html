@@ -375,6 +375,11 @@ class VisionSystem {
         this.markerType = 'aruco'; // 'aruco' or 'apriltag'
         this.useAruco = true; // Legacy flag for backwards compatibility
         this.apriltagDetector = null;
+        
+        // Camera intrinsics for solvePnP (default values for typical mobile camera)
+        // Field of view: 60 degrees (vertical FOV)
+        this.cameraMatrix = null;
+        this.distCoeffs = null;
     }
 
     async init(video, markerType = 'aruco') {
@@ -387,6 +392,26 @@ class VisionSystem {
 
         this.src = new cv.Mat(h, w, cv.CV_8UC4);
         this.gray = new cv.Mat();
+        
+        // Initialize camera intrinsic matrix for solvePnP
+        // Using pinhole camera model with 60 degree vertical FOV
+        // NOTE: This is an approximation for typical mobile cameras
+        // For better accuracy, perform camera calibration to get actual intrinsics
+        // Different devices may have slightly different FOV (typically 50-70 degrees)
+        const vFovRad = 60 * Math.PI / 180;
+        const focal = (video.videoHeight / 2) / Math.tan(vFovRad / 2);
+        const cx = video.videoWidth / 2;
+        const cy = video.videoHeight / 2;
+        
+        // Camera matrix: [fx, 0, cx; 0, fy, cy; 0, 0, 1]
+        this.cameraMatrix = cv.matFromArray(3, 3, cv.CV_64F, [
+            focal, 0, cx,
+            0, focal, cy,
+            0, 0, 1
+        ]);
+        
+        // Distortion coefficients (assuming minimal distortion)
+        this.distCoeffs = cv.matFromArray(5, 1, cv.CV_64F, [0, 0, 0, 0, 0]);
 
         // ArUco detection setup
         if (this.markerType === 'aruco') {
@@ -512,7 +537,23 @@ class VisionSystem {
                 // Use first detected marker
                 const detection = detections[0];
                 const pose = this._getPoseFromDetection(detection, video.videoWidth, video.videoHeight, markerSize);
-                pose.rotation = this._getRotationFromCornersArray(detection.cornersPx);
+                
+                // Compute accurate transformation matrix using solvePnP
+                const corners = detection.cornersPx.map(c => ({
+                    x: c.x * (1 / this.scale),
+                    y: c.y * (1 / this.scale)
+                }));
+                const poseMatrix = this._computePoseFromCorners(corners, markerSize);
+                
+                if (poseMatrix) {
+                    pose.transformMatrix = poseMatrix.transformMatrix;
+                    pose.rotationMatrix = poseMatrix.rotation;
+                    pose.translationVector = poseMatrix.translation;
+                } else {
+                    // Fallback to approximate rotation
+                    pose.rotation = this._getRotationFromCornersArray(detection.cornersPx);
+                }
+                
                 return pose;
             } else {
                 // Multi-marker mode
@@ -568,6 +609,103 @@ class VisionSystem {
         const rotY = Math.atan((leftHeight - rightHeight) / ((leftHeight + rightHeight) / 2)) * 0.5;
 
         return { x: rotX, y: rotY, z: rotZ };
+    }
+    
+    /**
+     * Compute transformation matrix from marker corners using solvePnP
+     * This provides accurate plane alignment for AR rendering
+     * @param {Array} corners - Array of 4 corner points {x, y}
+     * @param {number} markerSize - Physical size of marker in mm
+     * @returns {Object} Pose with translation, rotation matrix, and transformation matrix
+     */
+    _computePoseFromCorners(corners, markerSize) {
+        try {
+            // Define 3D object points for the marker (in marker's coordinate system)
+            // Marker is centered at origin, lying in XY plane (Z=0)
+            // Corner order matches detection: [0]=bottom-left, [1]=bottom-right, [2]=top-right, [3]=top-left
+            // This order is consistent with both ArUco and AprilTag detection outputs
+            const halfSize = markerSize / 2.0;
+            const objectPoints = cv.matFromArray(4, 1, cv.CV_32FC3, [
+                -halfSize, -halfSize, 0,  // Corner 0: Bottom-left
+                 halfSize, -halfSize, 0,  // Corner 1: Bottom-right
+                 halfSize,  halfSize, 0,  // Corner 2: Top-right
+                -halfSize,  halfSize, 0   // Corner 3: Top-left
+            ]);
+            
+            // Convert image points to OpenCV Mat
+            // Corners are in screen space, need to be in original video resolution
+            // Order must match objectPoints for correct correspondence
+            const imagePoints = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                corners[0].x, corners[0].y,  // Bottom-left in image
+                corners[1].x, corners[1].y,  // Bottom-right in image
+                corners[2].x, corners[2].y,  // Top-right in image
+                corners[3].x, corners[3].y   // Top-left in image
+            ]);
+            
+            // Solve PnP to get rotation and translation
+            const rvec = new cv.Mat();
+            const tvec = new cv.Mat();
+            const success = cv.solvePnP(
+                objectPoints,
+                imagePoints,
+                this.cameraMatrix,
+                this.distCoeffs,
+                rvec,
+                tvec,
+                false,
+                cv.SOLVEPNP_IPPE_SQUARE  // Best for planar square markers
+            );
+            
+            if (!success) {
+                objectPoints.delete();
+                imagePoints.delete();
+                rvec.delete();
+                tvec.delete();
+                return null;
+            }
+            
+            // Convert rotation vector to rotation matrix
+            const rotMat = new cv.Mat();
+            cv.Rodrigues(rvec, rotMat);
+            
+            // Extract rotation matrix elements
+            const R = [];
+            for (let i = 0; i < 9; i++) {
+                R.push(rotMat.data64F[i]);
+            }
+            
+            // Extract translation vector
+            const T = [
+                tvec.data64F[0],
+                tvec.data64F[1],
+                tvec.data64F[2]
+            ];
+            
+            // Create transformation matrix (4x4 homogeneous)
+            // This represents the marker's plane in camera space
+            const transformMatrix = [
+                R[0], R[1], R[2], T[0],
+                R[3], R[4], R[5], T[1],
+                R[6], R[7], R[8], T[2],
+                0,    0,    0,    1
+            ];
+            
+            // Cleanup
+            objectPoints.delete();
+            imagePoints.delete();
+            rvec.delete();
+            tvec.delete();
+            rotMat.delete();
+            
+            return {
+                translation: T,
+                rotation: R,
+                transformMatrix: transformMatrix
+            };
+        } catch (e) {
+            console.error("Error computing pose from corners:", e);
+            return null;
+        }
     }
 
     _calculateMultiMarkerPoseFromDetections(detections, video, markerSize, mode) {
@@ -633,6 +771,21 @@ class VisionSystem {
             requiredCount: requiredCount,
             allMarkersFound: detections.length >= requiredCount
         };
+        
+        // Compute transformation matrix from first marker for plane alignment
+        if (detections.length > 0) {
+            const corners = detections[0].cornersPx.map(c => ({
+                x: c.x * (1 / this.scale),
+                y: c.y * (1 / this.scale)
+            }));
+            const poseMatrix = this._computePoseFromCorners(corners, markerSize);
+            
+            if (poseMatrix) {
+                pose.transformMatrix = poseMatrix.transformMatrix;
+                pose.rotationMatrix = poseMatrix.rotation;
+                pose.translationVector = poseMatrix.translation;
+            }
+        }
 
         return pose;
     }
@@ -651,8 +804,24 @@ class VisionSystem {
                 const corners = markerCorners.get(0);
                 const pose = this._getPoseFromCorners(corners, video.videoWidth, video.videoHeight, this.scale, markerSize);
 
-                // Store rotation for parallax effects
-                pose.rotation = this._getRotationFromCorners(corners);
+                // Compute accurate transformation matrix using solvePnP
+                const cornerArray = [];
+                for (let i = 0; i < 4; i++) {
+                    cornerArray.push({
+                        x: corners.data32F[i * 2] / this.scale,
+                        y: corners.data32F[i * 2 + 1] / this.scale
+                    });
+                }
+                const poseMatrix = this._computePoseFromCorners(cornerArray, markerSize);
+                
+                if (poseMatrix) {
+                    pose.transformMatrix = poseMatrix.transformMatrix;
+                    pose.rotationMatrix = poseMatrix.rotation;
+                    pose.translationVector = poseMatrix.translation;
+                } else {
+                    // Fallback to approximate rotation
+                    pose.rotation = this._getRotationFromCorners(corners);
+                }
 
                 markerCorners.delete();
                 markerIds.delete();
@@ -831,7 +1000,28 @@ class VisionSystem {
             rotation = this._getRotationFromCorners(markers[detectedIds[0]].corners);
         }
 
-        return { x, y, z, rotation };
+        const pose = { x, y, z, rotation };
+        
+        // Compute transformation matrix from first marker for plane alignment
+        if (detectedIds.length > 0) {
+            const firstMarker = markers[detectedIds[0]];
+            const cornerArray = [];
+            for (let i = 0; i < 4; i++) {
+                cornerArray.push({
+                    x: firstMarker.corners.data32F[i * 2] / this.scale,
+                    y: firstMarker.corners.data32F[i * 2 + 1] / this.scale
+                });
+            }
+            const poseMatrix = this._computePoseFromCorners(cornerArray, markerSize);
+            
+            if (poseMatrix) {
+                pose.transformMatrix = poseMatrix.transformMatrix;
+                pose.rotationMatrix = poseMatrix.rotation;
+                pose.translationVector = poseMatrix.translation;
+            }
+        }
+        
+        return pose;
     }
 
     _sortMarkersByPosition(markers, detectedIds) {
@@ -1026,6 +1216,10 @@ class GraphicsEngine {
         this.scene.add(this.root);
         this.stencil = null;
         this.parallaxEnabled = true;
+        
+        // Smoothing factors for stable AR tracking
+        this.POSITION_SMOOTH_FACTOR = 0.2;  // Position interpolation (0-1, higher = faster response)
+        this.ROTATION_SMOOTH_FACTOR = 0.15; // Rotation interpolation (0-1, higher = faster response)
     }
 
     setStencil(data) {
@@ -1155,6 +1349,80 @@ class GraphicsEngine {
         const ring = new THREE.Mesh(new THREE.RingGeometry(0, data.radius, 32), new THREE.MeshBasicMaterial({color:0x333333}));
         const zone = new THREE.Mesh(new THREE.RingGeometry(data.radius, data.clearance, 32), new THREE.MeshBasicMaterial({color:0xe30613, opacity:0.3, transparent:true, side:THREE.DoubleSide}));
         this.stencil.add(ring, zone);
+    }
+    
+    /**
+     * Apply transformation matrix from solvePnP to align AR objects to AprilTag plane
+     * This ensures all rendered elements sit properly on the detected marker's plane
+     * @param {Array} transformMatrix - 4x4 transformation matrix in row-major order
+     * @param {number} depthOffset - Manual depth offset in mm
+     */
+    applyTransformationMatrix(transformMatrix, depthOffset = 0) {
+        // OpenCV returns transformation from marker to camera
+        // We need camera to marker (inverse) for rendering
+        
+        // Extract rotation matrix (3x3) and translation vector from 4x4 matrix
+        // transformMatrix is in row-major order: [R00, R01, R02, Tx, R10, R11, R12, Ty, R20, R21, R22, Tz, 0, 0, 0, 1]
+        const R = [
+            transformMatrix[0], transformMatrix[1], transformMatrix[2],
+            transformMatrix[4], transformMatrix[5], transformMatrix[6],
+            transformMatrix[8], transformMatrix[9], transformMatrix[10]
+        ];
+        
+        const T = [
+            transformMatrix[3],
+            transformMatrix[7],
+            transformMatrix[11]
+        ];
+        
+        // OpenCV coordinate system: X right, Y down, Z forward (into scene)
+        // Three.js coordinate system: X right, Y up, Z backward (out of scene)
+        // Need to convert between these coordinate systems
+        
+        // Apply coordinate system transformation
+        // Flip Y and Z axes to convert from OpenCV to Three.js
+        const cvToThreeRotation = new THREE.Matrix4();
+        cvToThreeRotation.set(
+            1,  0,  0, 0,
+            0, -1,  0, 0,
+            0,  0, -1, 0,
+            0,  0,  0, 1
+        );
+        
+        // Create rotation matrix in Three.js format
+        const rotMatrix = new THREE.Matrix4();
+        rotMatrix.set(
+            R[0], R[3], R[6], 0,
+            R[1], R[4], R[7], 0,
+            R[2], R[5], R[8], 0,
+            0,    0,    0,    1
+        );
+        
+        // Apply coordinate system conversion
+        rotMatrix.premultiply(cvToThreeRotation);
+        
+        // Apply depth offset to translation (along camera Z axis)
+        const offsetT = [
+            T[0],
+            T[1],
+            T[2] + depthOffset
+        ];
+        
+        // Convert translation from OpenCV to Three.js coordinates
+        const translationThree = new THREE.Vector3(
+            offsetT[0],
+            -offsetT[1],  // Flip Y
+            -offsetT[2]   // Flip Z
+        );
+        
+        // Smoothly interpolate to new transformation
+        // Update position with smoothing
+        this.root.position.lerp(translationThree, this.POSITION_SMOOTH_FACTOR);
+        
+        // Update rotation with smoothing (slightly slower for more stable rotation)
+        const targetQuaternion = new THREE.Quaternion();
+        targetQuaternion.setFromRotationMatrix(rotMatrix);
+        this.root.quaternion.slerp(targetQuaternion, this.ROTATION_SMOOTH_FACTOR);
     }
 
     render() { this.renderer.render(this.scene, this.camera); }
@@ -1420,20 +1688,29 @@ const App = {
             if(pose) {
                 // Update position with smooth interpolation (only if not partial detection)
                 if (!pose.partialDetection) {
-                    // Apply manual depth offset to z position
-                    const targetZ = pose.z - this.manualDepthOffset;
+                    // If we have a transformation matrix from solvePnP, use it for accurate plane alignment
+                    // Note: parallaxEnabled flag controls 3D orientation tracking (both transformation matrix and rotation)
+                    // When enabled: uses full 3D transformation with plane alignment
+                    // When disabled: uses only position (x,y,z) without rotation
+                    if (pose.transformMatrix && this.graphics.parallaxEnabled) {
+                        this.graphics.applyTransformationMatrix(pose.transformMatrix, this.manualDepthOffset);
+                    } else {
+                        // Fallback to simple position and rotation (legacy behavior)
+                        // Apply manual depth offset to z position
+                        const targetZ = pose.z - this.manualDepthOffset;
 
-                    const t = this.graphics.root.position;
-                    t.x += (pose.x - t.x) * 0.2;
-                    t.y += (pose.y - t.y) * 0.2;
-                    t.z += (targetZ - t.z) * 0.2;
+                        const t = this.graphics.root.position;
+                        t.x += (pose.x - t.x) * 0.2;
+                        t.y += (pose.y - t.y) * 0.2;
+                        t.z += (targetZ - t.z) * 0.2;
 
-                    // Apply parallax rotation if available (from ArUco detection)
-                    if(pose.rotation && this.graphics.parallaxEnabled) {
-                        const r = this.graphics.root.rotation;
-                        r.x += (pose.rotation.x - r.x) * 0.15;
-                        r.y += (pose.rotation.y - r.y) * 0.15;
-                        r.z += (pose.rotation.z - r.z) * 0.15;
+                        // Apply parallax rotation if available (from ArUco detection)
+                        if(pose.rotation && this.graphics.parallaxEnabled) {
+                            const r = this.graphics.root.rotation;
+                            r.x += (pose.rotation.x - r.x) * 0.15;
+                            r.y += (pose.rotation.y - r.y) * 0.15;
+                            r.z += (pose.rotation.z - r.z) * 0.15;
+                        }
                     }
                 }
 

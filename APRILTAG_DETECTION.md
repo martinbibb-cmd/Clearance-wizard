@@ -93,10 +93,50 @@ Routes detection to appropriate method:
 
 #### Pose Estimation
 
-Both marker types use the same pose estimation pipeline:
-- Pinhole camera model for 3D position calculation
-- Perspective distortion analysis for rotation estimation
-- Smooth interpolation for stable tracking
+Both marker types use enhanced pose estimation with **plane alignment**:
+- **solvePnP-based pose calculation**: Uses OpenCV's `cv.solvePnP` with `SOLVEPNP_IPPE_SQUARE` algorithm for accurate 3D pose
+- **Rotation matrix extraction**: Converts rotation vector to full 3x3 rotation matrix using Rodrigues transformation
+- **Transformation matrix**: Computes complete 4x4 homogeneous transformation matrix representing the marker's plane
+- **Coordinate system conversion**: Automatically converts between OpenCV (X right, Y down, Z forward) and Three.js (X right, Y up, Z backward) coordinate systems
+- **Smooth interpolation**: Applies quaternion-based smoothing for stable tracking
+
+#### Plane Alignment Feature
+
+**NEW**: All AR elements are now rendered directly on the plane of the detected AprilTag marker, ensuring accurate alignment regardless of marker orientation.
+
+**How it Works:**
+
+1. **Detection**: When a marker is detected, the system identifies its 4 corner points in image space
+2. **Pose Estimation**: `cv.solvePnP` calculates the exact 3D pose (position and orientation) of the marker relative to the camera
+3. **Transformation Matrix**: The rotation matrix and translation vector are combined into a 4x4 transformation matrix
+4. **Plane Rendering**: The GraphicsEngine applies this transformation to align all AR objects to the marker's plane
+5. **Dynamic Updates**: As the marker moves or rotates, the transformation updates in real-time
+
+**Benefits:**
+
+- **Accurate Placement**: AR objects align perfectly with tilted, vertical, or angled markers
+- **Robust Tracking**: Works with any marker orientation (flat, tilted, vertical, upside-down)
+- **Natural Interaction**: Objects appear to "stick" to the marker surface
+- **Real-time Updates**: Smooth tracking as marker position/orientation changes
+
+**Technical Details:**
+
+The transformation matrix represents:
+```
+[R00  R01  R02  Tx ]
+[R10  R11  R12  Ty ]
+[R20  R21  R22  Tz ]
+[0    0    0    1  ]
+```
+
+Where:
+- R = 3x3 rotation matrix (marker orientation in camera space)
+- T = 3x1 translation vector (marker position in camera space)
+
+The system automatically handles:
+- Coordinate system conversions (OpenCV ↔ Three.js)
+- Quaternion-based smooth interpolation
+- Manual depth offset adjustments
 
 ### UI Integration
 
@@ -132,12 +172,23 @@ Both marker types use the same pose estimation pipeline:
 5. Choose marker size (190mm recommended)
 6. Download or print marker
 
-**Using AprilTag Detection:**
+**Using AprilTag Detection with Plane Alignment:**
 
 1. Follow user flow above
 2. Select "AprilTag" as marker type
 3. Use generated AprilTag markers
 4. Measure BLACK SQUARE AREA ONLY (no white border)
+5. **Test plane alignment with different orientations:**
+   - **Flat on table**: Marker lying flat - objects should render perpendicular to surface
+   - **Tilted at angle**: Marker propped at 45° - objects should follow the tilt
+   - **Vertical on wall**: Marker mounted vertically - objects should render on vertical plane
+   - **Upside down**: Marker rotated 180° - tracking should remain stable
+
+**Expected Behavior:**
+- AR objects maintain alignment with marker plane regardless of orientation
+- Smooth transitions as marker moves or rotates
+- Objects appear "glued" to the marker surface
+- Clearance zones extend naturally from the marker plane
 
 ### For Developers
 
@@ -172,6 +223,30 @@ class CustomDetector {
 2. Add detection routing in `VisionSystem.findMarker()`
 3. Handle marker format in `drawMarkerFeedback()`
 4. Add UI option in marker type dropdown
+
+**Using Plane Alignment in Custom Code:**
+
+The VisionSystem now returns enhanced pose data with transformation matrices:
+
+```javascript
+const pose = vision.findMarker(video, markerSize, detectionMode);
+
+if (pose && pose.transformMatrix) {
+    // Pose includes:
+    // - transformMatrix: 4x4 homogeneous transformation matrix
+    // - rotationMatrix: 3x3 rotation matrix (9 elements)
+    // - translationVector: [tx, ty, tz] in camera space
+    
+    // Apply to GraphicsEngine for plane-aligned rendering
+    graphics.applyTransformationMatrix(pose.transformMatrix, depthOffset);
+}
+```
+
+**Key Implementation Methods:**
+
+- `VisionSystem._computePoseFromCorners(corners, markerSize)`: Uses `cv.solvePnP` to compute accurate pose
+- `GraphicsEngine.applyTransformationMatrix(matrix, offset)`: Applies transformation with coordinate conversion
+- Both methods handle OpenCV ↔ Three.js coordinate system conversion automatically
 
 ## Technical Details
 
@@ -230,6 +305,47 @@ class CustomDetector {
    - Improved pose estimation accuracy
 
 ## Troubleshooting
+
+### Plane Alignment Issues
+
+**Objects not aligning with marker plane:**
+
+1. **Check marker orientation detection:**
+   - Ensure marker is clearly visible (no occlusion)
+   - Good lighting without glare or shadows
+   - Marker should be crisp and in focus
+
+2. **Verify solvePnP is working:**
+   - Open browser console (F12)
+   - Check for "Error computing pose from corners" messages
+   - Ensure camera matrix is initialized correctly
+
+3. **Test coordinate system conversion:**
+   - AR objects should move naturally with marker
+   - Check for axis inversions (objects upside down or mirrored)
+   - Verify Z-axis pointing in correct direction
+
+4. **Adjust smoothing parameters:**
+   - Default smoothing factor is 0.2 (position) and 0.15 (rotation)
+   - Reduce for more responsive tracking
+   - Increase for smoother, less jittery motion
+
+**Objects floating or penetrating marker surface:**
+
+1. **Adjust manual depth offset:**
+   - Use depth offset slider in settings
+   - Positive values move objects away from marker
+   - Negative values move objects toward marker
+
+2. **Verify marker size measurement:**
+   - Measure BLACK SQUARE AREA only
+   - Use ruler or calipers for accuracy
+   - Size mismatch causes depth scaling errors
+
+3. **Check camera calibration:**
+   - Default assumes 60° vertical FOV
+   - Different cameras may need calibration adjustment
+   - Consider using camera calibration tools
 
 ### AprilTag Not Detecting
 
