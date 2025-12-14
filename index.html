@@ -52,6 +52,8 @@
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="./apriltag.js"></script>
+    <script src="./src/detectors/types.js"></script>
+    <script src="./src/detectors/apriltagDetector.js"></script>
 
     <style>
         :root { --wb-blue: #005eb8; --wb-red: #e30613; }
@@ -163,6 +165,15 @@
                 <option value="single">📍 Single Marker</option>
                 <option value="4-marker">📐 4-Marker (Boiler)</option>
                 <option value="5-marker">🪟 5-Marker (Window)</option>
+            </select>
+
+            <!-- Marker Type Selection -->
+            <label style="display: flex; align-items: center; gap: 5px;">
+                🏷️ Marker Type
+            </label>
+            <select id="input-marker-type" onchange="App.onMarkerTypeChange()" style="font-size: 0.95rem;">
+                <option value="aruco">ArUco (DICT_4X4_50)</option>
+                <option value="apriltag">✨ AprilTag (tag36h11)</option>
             </select>
 
             <!-- Marker Size -->
@@ -352,25 +363,30 @@ const APPLIANCE_DB = [
 ];
 
 // ==========================================
-// 👁️ VISION SYSTEM (ArUco Marker Detection)
+// 👁️ VISION SYSTEM (Unified Marker Detection)
 // ==========================================
 class VisionSystem {
     constructor() {
         this.ready = false;
         this.scale = 0.5;
-        this.useAruco = true; // Use ArUco detection for better pose estimation
+        this.markerType = 'aruco'; // 'aruco' or 'apriltag'
+        this.useAruco = true; // Legacy flag for backwards compatibility
+        this.apriltagDetector = null;
     }
 
-    init(video) {
+    async init(video, markerType = 'aruco') {
         // Initialize Mats with scaled dimensions to match canvas size
         const w = Math.floor(video.videoWidth * this.scale);
         const h = Math.floor(video.videoHeight * this.scale);
+
+        this.markerType = markerType;
+        this.useAruco = (markerType === 'aruco');
 
         this.src = new cv.Mat(h, w, cv.CV_8UC4);
         this.gray = new cv.Mat();
 
         // ArUco detection setup
-        if (this.useAruco) {
+        if (this.markerType === 'aruco') {
             try {
                 // Use DICT_4X4_50 dictionary (small, fast, good for mobile)
                 this.dictionary = new cv.aruco_Dictionary(cv.DICT_4X4_50);
@@ -394,9 +410,39 @@ class VisionSystem {
                 this.useAruco = false;
             }
         }
+        
+        // AprilTag detection setup
+        if (this.markerType === 'apriltag') {
+            try {
+                if (typeof AprilTagDetector === 'undefined') {
+                    throw new Error('AprilTagDetector not loaded');
+                }
+                this.apriltagDetector = new AprilTagDetector({
+                    family: '36h11',
+                    grayMat: this.gray
+                });
+                await this.apriltagDetector.init();
+                console.log("AprilTag detector initialized");
+            } catch(e) {
+                console.error("AprilTag detector initialization failed:", e);
+                // Fallback to ArUco
+                console.warn("Falling back to ArUco detection");
+                this.markerType = 'aruco';
+                this.useAruco = true;
+                
+                // Initialize ArUco as fallback
+                try {
+                    this.dictionary = new cv.aruco_Dictionary(cv.DICT_4X4_50);
+                    this.detectorParams = new cv.aruco_DetectorParameters();
+                    console.log("ArUco detector initialized as fallback");
+                } catch(e2) {
+                    console.error("Fallback to ArUco also failed:", e2);
+                }
+            }
+        }
 
-        // Fallback to square detection
-        if (!this.useAruco) {
+        // Fallback to square detection (if both ArUco and AprilTag fail)
+        if (!this.useAruco && this.markerType !== 'apriltag') {
             this.blurred = new cv.Mat();
             this.binary = new cv.Mat();
             this.contours = new cv.MatVector();
@@ -431,7 +477,10 @@ class VisionSystem {
         // This helps detect markers in poor lighting or high contrast situations
         cv.equalizeHist(this.gray, this.gray);
 
-        if (this.useAruco) {
+        // Route to appropriate detector
+        if (this.markerType === 'apriltag' && this.apriltagDetector) {
+            return this._findAprilTagMarker(video, markerSize, detectionMode);
+        } else if (this.useAruco) {
             if (detectionMode === 'single') {
                 return this._findArucoMarker(video, markerSize);
             } else {
@@ -440,6 +489,149 @@ class VisionSystem {
         } else {
             return this._findSquareMarker(video, markerSize, w, h);
         }
+    }
+
+    _findAprilTagMarker(video, markerSize, detectionMode) {
+        try {
+            // Convert gray Mat to image data for AprilTag detector
+            const grayData = new Uint8Array(this.gray.data);
+            const width = this.gray.cols;
+            const height = this.gray.rows;
+
+            // Detect AprilTag markers
+            const detections = this.apriltagDetector.detect(this.gray, width, height);
+
+            if (detections.length === 0) {
+                return null;
+            }
+
+            if (detectionMode === 'single') {
+                // Use first detected marker
+                const detection = detections[0];
+                const pose = this._getPoseFromDetection(detection, video.videoWidth, video.videoHeight, markerSize);
+                pose.rotation = this._getRotationFromCornersArray(detection.cornersPx);
+                return pose;
+            } else {
+                // Multi-marker mode
+                return this._calculateMultiMarkerPoseFromDetections(detections, video, markerSize, detectionMode);
+            }
+        } catch(e) {
+            console.error("AprilTag detection error:", e);
+            return null;
+        }
+    }
+
+    _getPoseFromDetection(detection, vw, vh, markerSize) {
+        // Convert detection corners to pose
+        const corners = detection.cornersPx;
+        
+        // Calculate marker width in pixels (average of all four edges)
+        const wPx = (
+            Math.hypot(corners[0].x-corners[1].x, corners[0].y-corners[1].y) +
+            Math.hypot(corners[1].x-corners[2].x, corners[1].y-corners[2].y) +
+            Math.hypot(corners[2].x-corners[3].x, corners[2].y-corners[3].y) +
+            Math.hypot(corners[3].x-corners[0].x, corners[3].y-corners[0].y)
+        ) / 4;
+
+        // Calculate pose using pinhole camera model
+        const vFovRad = 60 * Math.PI / 180;
+        const focal = (vh / 2) / Math.tan(vFovRad / 2);
+        const z = -(markerSize * focal) / wPx;
+
+        // Use center from detection
+        const cx = detection.centerPx.x * (1 / this.scale);
+        const cy = detection.centerPx.y * (1 / this.scale);
+
+        // Convert to 3D position
+        const x = (cx - vw/2) * (Math.abs(z)/focal);
+        const y = (cy - vh/2) * (Math.abs(z)/focal) * -1;
+
+        return { x, y, z };
+    }
+
+    _getRotationFromCornersArray(corners) {
+        // Calculate rotation angles based on marker orientation (for simple corner arrays)
+        const dx = corners[1].x - corners[0].x;
+        const dy = corners[1].y - corners[0].y;
+        const rotZ = Math.atan2(dy, dx);
+
+        // Estimate tilt based on perspective distortion
+        const topWidth = Math.hypot(corners[1].x - corners[0].x, corners[1].y - corners[0].y);
+        const bottomWidth = Math.hypot(corners[2].x - corners[3].x, corners[2].y - corners[3].y);
+        const rotX = Math.atan((topWidth - bottomWidth) / ((topWidth + bottomWidth) / 2)) * 0.5;
+
+        const leftHeight = Math.hypot(corners[3].x - corners[0].x, corners[3].y - corners[0].y);
+        const rightHeight = Math.hypot(corners[2].x - corners[1].x, corners[2].y - corners[1].y);
+        const rotY = Math.atan((leftHeight - rightHeight) / ((leftHeight + rightHeight) / 2)) * 0.5;
+
+        return { x: rotX, y: rotY, z: rotZ };
+    }
+
+    _calculateMultiMarkerPoseFromDetections(detections, video, markerSize, mode) {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        
+        const requiredCount = mode === '4-marker' ? 4 : 5;
+
+        // Calculate average scale from all detected markers
+        let totalScale = 0;
+        let scaleCount = 0;
+
+        for (let detection of detections) {
+            const corners = detection.cornersPx;
+            const wPx = (
+                Math.hypot(corners[0].x-corners[1].x, corners[0].y-corners[1].y) +
+                Math.hypot(corners[1].x-corners[2].x, corners[1].y-corners[2].y) +
+                Math.hypot(corners[2].x-corners[3].x, corners[2].y-corners[3].y) +
+                Math.hypot(corners[3].x-corners[0].x, corners[3].y-corners[0].y)
+            ) / 4;
+
+            totalScale += wPx / markerSize;
+            scaleCount++;
+        }
+
+        const avgScale = totalScale / scaleCount;
+
+        // Calculate centroid
+        let centroidX = 0, centroidY = 0;
+        for (let detection of detections) {
+            centroidX += detection.centerPx.x * (1 / this.scale);
+            centroidY += detection.centerPx.y * (1 / this.scale);
+        }
+        centroidX /= detections.length;
+        centroidY /= detections.length;
+
+        // Calculate depth
+        const vFovRad = 60 * Math.PI / 180;
+        const focal = (vh / 2) / Math.tan(vFovRad / 2);
+        const z = -(markerSize * focal) / (avgScale * markerSize);
+
+        // Convert centroid to 3D position
+        const x = (centroidX - vw/2) * (Math.abs(z)/focal);
+        const y = (centroidY - vh/2) * (Math.abs(z)/focal) * -1;
+
+        // Create marker map for UI feedback
+        const detectedMarkers = {};
+        const detectedIds = [];
+        for (let detection of detections) {
+            detectedMarkers[detection.id] = {
+                id: detection.id,
+                center: detection.centerPx,
+                corners: detection.cornersPx
+            };
+            detectedIds.push(detection.id);
+        }
+
+        const pose = {
+            x, y, z,
+            rotation: detections.length > 0 ? this._getRotationFromCornersArray(detections[0].cornersPx) : null,
+            detectedIds: detectedIds,
+            detectedMarkers: detectedMarkers,
+            requiredCount: requiredCount,
+            allMarkersFound: detections.length >= requiredCount
+        };
+
+        return pose;
     }
 
     _findArucoMarker(video, markerSize) {
@@ -972,6 +1164,7 @@ const App = {
     markerSize: 190,
     detectionMode: 'single',
     multiMarkerSize: 90,
+    markerType: 'aruco', // 'aruco' or 'apriltag'
     vision: new VisionSystem(),
     graphics: null,
     locked: false,
@@ -1077,6 +1270,13 @@ const App = {
         }
     },
 
+    // Handle marker type selection change
+    onMarkerTypeChange: function() {
+        const markerTypeSelect = document.getElementById('input-marker-type');
+        this.markerType = markerTypeSelect.value;
+        console.log(`Marker type changed to: ${this.markerType}`);
+    },
+
     // Handle model selection change
     onModelChange: function() {
         const modelSelect = document.getElementById('input-type');
@@ -1129,8 +1329,9 @@ const App = {
         const depthOffset = parseInt(document.getElementById('manual-depth-offset').value, 10);
         this.manualDepthOffset = isNaN(depthOffset) ? 0 : depthOffset;
 
-        // Get detection mode
+        // Get detection mode and marker type
         this.detectionMode = document.getElementById('input-detection-mode').value;
+        this.markerType = document.getElementById('input-marker-type').value;
 
         // Get marker size based on detection mode
         if (this.detectionMode === 'single') {
@@ -1200,7 +1401,7 @@ const App = {
         this.graphics = new GraphicsEngine(document.getElementById('ar-layer'));
         this.graphics.setStencil(data);
         this.setupTouch();
-        this.vision.init(video);
+        await this.vision.init(video, this.markerType);
         this.loop();
     },
 
@@ -1335,15 +1536,32 @@ const App = {
             ctx.strokeStyle = '#00ff00';
             ctx.lineWidth = 3;
             ctx.beginPath();
-            for (let i = 0; i < 4; i++) {
-                const cx = corners.data32F[i * 2] / this.vision.scale * scaleX + offsetX;
-                const cy = corners.data32F[i * 2 + 1] / this.vision.scale * scaleY + offsetY;
-                if (i === 0) {
-                    ctx.moveTo(cx, cy);
-                } else {
-                    ctx.lineTo(cx, cy);
+            
+            // Handle both OpenCV Mat format and simple array format
+            if (corners.data32F) {
+                // OpenCV Mat format (ArUco)
+                for (let i = 0; i < 4; i++) {
+                    const cx = corners.data32F[i * 2] / this.vision.scale * scaleX + offsetX;
+                    const cy = corners.data32F[i * 2 + 1] / this.vision.scale * scaleY + offsetY;
+                    if (i === 0) {
+                        ctx.moveTo(cx, cy);
+                    } else {
+                        ctx.lineTo(cx, cy);
+                    }
+                }
+            } else if (Array.isArray(corners)) {
+                // Simple array format (AprilTag)
+                for (let i = 0; i < 4; i++) {
+                    const cx = corners[i].x * scaleX + offsetX;
+                    const cy = corners[i].y * scaleY + offsetY;
+                    if (i === 0) {
+                        ctx.moveTo(cx, cy);
+                    } else {
+                        ctx.lineTo(cx, cy);
+                    }
                 }
             }
+            
             ctx.closePath();
             ctx.stroke();
             
