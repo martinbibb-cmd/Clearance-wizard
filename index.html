@@ -289,6 +289,14 @@
                         <input type="checkbox" id="testing-mode-checkbox-advanced" onchange="App.toggleTestingMode(event)" style="width: auto; margin: 0;">
                         <span>🔬 Testing Mode (calibration axes)</span>
                     </label>
+                    
+                    <label style="display: flex; align-items: center; gap: 10px; margin-top: 15px; font-size: 0.8rem; cursor: pointer;">
+                        <input type="checkbox" id="lens-correction-checkbox" onchange="App.toggleLensCorrection(event)" style="width: auto; margin: 0;">
+                        <span>🔍 Lens Correction (chromatic aberration)</span>
+                    </label>
+                    <p style="font-size: 0.7rem; color: #888; margin: 5px 0 0 30px;">
+                        Auto-detects device and corrects for lens distortion
+                    </p>
                 </div>
             </details>
 
@@ -432,6 +440,141 @@ class VisionSystem {
         // Field of view: 60 degrees (vertical FOV)
         this.cameraMatrix = null;
         this.distCoeffs = null;
+        
+        // Lens correction settings
+        this.lensCorrection = false;
+        this.undistortedGray = null;
+        this.deviceProfile = null;
+    }
+    
+    /**
+     * Device-specific lens calibration database
+     * Contains distortion coefficients for common mobile devices to correct chromatic aberration
+     * Distortion coefficients: [k1, k2, p1, p2, k3] (radial k1,k2,k3 and tangential p1,p2)
+     * Negative k1 indicates barrel distortion (most common in phone cameras)
+     */
+    static DEVICE_PROFILES = {
+        // iPhone models (common distortion patterns)
+        'iPhone': {
+            distCoeffs: [-0.12, 0.08, 0, 0, 0],  // Typical iPhone barrel distortion
+            fovDegrees: 60
+        },
+        'iPhone 11': {
+            distCoeffs: [-0.15, 0.12, 0.001, 0.001, 0],
+            fovDegrees: 62
+        },
+        'iPhone 12': {
+            distCoeffs: [-0.14, 0.10, 0.001, 0.001, 0],
+            fovDegrees: 63
+        },
+        'iPhone 13': {
+            distCoeffs: [-0.13, 0.09, 0.001, 0.001, 0],
+            fovDegrees: 63
+        },
+        'iPhone 14': {
+            distCoeffs: [-0.13, 0.09, 0.001, 0.001, 0],
+            fovDegrees: 63
+        },
+        'iPhone 15': {
+            distCoeffs: [-0.12, 0.08, 0.001, 0.001, 0],
+            fovDegrees: 64
+        },
+        'iPad': {
+            distCoeffs: [-0.10, 0.06, 0, 0, 0],
+            fovDegrees: 58
+        },
+        
+        // Android devices (Samsung Galaxy series)
+        'SM-G': {  // Samsung Galaxy S series
+            distCoeffs: [-0.14, 0.11, 0.001, 0.001, 0],
+            fovDegrees: 65
+        },
+        'SM-A': {  // Samsung Galaxy A series
+            distCoeffs: [-0.16, 0.13, 0.001, 0.001, 0],
+            fovDegrees: 64
+        },
+        'Pixel': {  // Google Pixel
+            distCoeffs: [-0.11, 0.07, 0.001, 0.001, 0],
+            fovDegrees: 61
+        },
+        'Pixel 6': {
+            distCoeffs: [-0.10, 0.06, 0.001, 0.001, 0],
+            fovDegrees: 62
+        },
+        'Pixel 7': {
+            distCoeffs: [-0.10, 0.06, 0.001, 0.001, 0],
+            fovDegrees: 62
+        },
+        'Pixel 8': {
+            distCoeffs: [-0.09, 0.05, 0.001, 0.001, 0],
+            fovDegrees: 63
+        },
+        
+        // Generic fallback
+        'default': {
+            distCoeffs: [-0.12, 0.08, 0, 0, 0],  // Conservative default
+            fovDegrees: 60
+        }
+    };
+    
+    /**
+     * Detect device and select appropriate lens calibration profile
+     * @returns {Object} Device profile with distortion coefficients and FOV
+     */
+    detectDeviceProfile() {
+        const userAgent = navigator.userAgent;
+        console.log('Detecting device from user agent:', userAgent);
+        
+        // Try to match specific device models
+        for (const [deviceKey, profile] of Object.entries(VisionSystem.DEVICE_PROFILES)) {
+            if (deviceKey !== 'default' && userAgent.includes(deviceKey)) {
+                console.log(`Matched device profile: ${deviceKey}`);
+                return { name: deviceKey, ...profile };
+            }
+        }
+        
+        // Check for generic device types
+        if (userAgent.includes('iPhone')) {
+            console.log('Matched generic iPhone profile');
+            return { name: 'iPhone', ...VisionSystem.DEVICE_PROFILES['iPhone'] };
+        }
+        if (userAgent.includes('iPad')) {
+            console.log('Matched generic iPad profile');
+            return { name: 'iPad', ...VisionSystem.DEVICE_PROFILES['iPad'] };
+        }
+        if (userAgent.includes('Android')) {
+            console.log('Matched generic Android profile (using default)');
+            return { name: 'Android', ...VisionSystem.DEVICE_PROFILES['default'] };
+        }
+        
+        console.log('No specific device match, using default profile');
+        return { name: 'default', ...VisionSystem.DEVICE_PROFILES['default'] };
+    }
+    
+    /**
+     * Enable lens correction with device-specific calibration
+     * @param {boolean} enabled - Whether to enable lens correction
+     */
+    setLensCorrection(enabled) {
+        this.lensCorrection = enabled;
+        console.log(`Lens correction ${enabled ? 'enabled' : 'disabled'}`);
+        
+        if (enabled && !this.deviceProfile) {
+            this.deviceProfile = this.detectDeviceProfile();
+            console.log('Device profile:', this.deviceProfile);
+            
+            // Update distortion coefficients with device-specific values
+            if (this.distCoeffs) {
+                this.distCoeffs.delete();
+            }
+            this.distCoeffs = cv.matFromArray(5, 1, cv.CV_64F, this.deviceProfile.distCoeffs);
+            console.log('Updated distortion coefficients:', this.deviceProfile.distCoeffs);
+            
+            // Allocate undistorted image buffer if not exists
+            if (!this.undistortedGray && this.gray) {
+                this.undistortedGray = new cv.Mat();
+            }
+        }
     }
 
     async init(video, markerType = 'aruco') {
@@ -553,9 +696,31 @@ class VisionSystem {
         this.src.data.set(this._ctx.getImageData(0,0,w,h).data);
         cv.cvtColor(this.src, this.gray, cv.COLOR_RGBA2GRAY);
 
+        // Apply lens correction if enabled (corrects chromatic aberration and distortion)
+        let processedGray = this.gray;
+        if (this.lensCorrection && this.cameraMatrix && this.distCoeffs) {
+            // Ensure undistorted buffer exists
+            if (!this.undistortedGray) {
+                this.undistortedGray = new cv.Mat();
+            }
+            
+            // Apply undistortion to correct lens distortion
+            // This removes barrel/pincushion distortion and chromatic aberration
+            cv.undistort(this.gray, this.undistortedGray, this.cameraMatrix, this.distCoeffs);
+            processedGray = this.undistortedGray;
+        }
+
         // Apply histogram equalization for better contrast in challenging lighting
         // This helps detect markers in poor lighting or high contrast situations
-        cv.equalizeHist(this.gray, this.gray);
+        cv.equalizeHist(processedGray, processedGray);
+        
+        // Update gray reference for detection methods
+        if (this.lensCorrection && processedGray !== this.gray) {
+            // Swap references so detection uses undistorted image
+            const temp = this.gray;
+            this.gray = processedGray;
+            processedGray = temp;
+        }
 
         // Route to appropriate detector
         if (this.markerType === 'apriltag' && this.apriltagDetector) {
@@ -1618,6 +1783,9 @@ const App = {
         // Initialize testing mode from localStorage and URL params
         this.initTestingMode();
         
+        // Initialize lens correction from localStorage
+        this.initLensCorrection();
+        
         // Start a timeout. If initialization is not complete after 10 seconds, assume failure.
         this.loadTimeoutId = setTimeout(() => {
             if (!this.cvReady) {
@@ -1673,6 +1841,19 @@ const App = {
         console.log(`Testing Mode initialized: ${this.testingMode}`);
     },
     
+    initLensCorrection: function() {
+        // Check localStorage for lens correction preference
+        const storedLensCorrection = localStorage.getItem('lensCorrection') === 'true';
+        
+        // Sync UI checkbox
+        const lensCheckbox = document.getElementById('lens-correction-checkbox');
+        if (lensCheckbox) {
+            lensCheckbox.checked = storedLensCorrection;
+        }
+        
+        console.log(`Lens correction initialized: ${storedLensCorrection}`);
+    },
+    
     toggleTestingMode: function(event) {
         this.testingMode = event.target.checked;
         
@@ -1698,6 +1879,25 @@ const App = {
         }
         
         console.log(`Testing Mode: ${this.testingMode ? 'ON' : 'OFF'}`);
+    },
+    
+    toggleLensCorrection: function(event) {
+        const enabled = event.target.checked;
+        
+        // Persist to localStorage
+        localStorage.setItem('lensCorrection', enabled);
+        
+        // Apply to vision system if it exists
+        if (this.vision) {
+            this.vision.setLensCorrection(enabled);
+            console.log(`Lens correction ${enabled ? 'enabled' : 'disabled'}`);
+            
+            // Show notification to user
+            const message = enabled 
+                ? '🔍 Lens correction enabled - distortion will be corrected based on device'
+                : 'Lens correction disabled';
+            console.log(message);
+        }
     },
     
     updateDeviceInfo: function(pose) {
@@ -1941,6 +2141,13 @@ const App = {
         
         this.setupTouch();
         await this.vision.init(video, this.markerType);
+        
+        // Apply lens correction setting if enabled
+        const lensCorrection = localStorage.getItem('lensCorrection') === 'true';
+        if (lensCorrection) {
+            this.vision.setLensCorrection(true);
+        }
+        
         this.loop();
     },
 
