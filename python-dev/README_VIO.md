@@ -45,6 +45,13 @@ This provides robust and accurate 3D pose tracking even when markers are tempora
 - Real-time pose data for 3D visualization
 - Includes sample client for testing
 
+#### 5. PoseStreamer (`vio/pose_streamer.py`)
+- Lightweight pose streaming for 3D rendering
+- Simple API: `stream_pose(position, quaternion)`
+- Minimal JSON format: `{"pos": [x,y,z], "rot": [w,x,y,z]}`
+- UDP broadcast on port 6000 (default)
+- Perfect for simple 3D visualization needs
+
 ### Main Application (`main.py`)
 - Demonstrates the complete VIO pipeline
 - Simulates synced image and IMU data
