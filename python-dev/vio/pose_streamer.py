@@ -69,9 +69,8 @@ class PoseStreamer:
         host : str, optional
             Target host address. Default is '127.0.0.1'.
         """
-        # Create UDP socket
+        # Create UDP socket for sending
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
         # Set target address
         self.target_address = (host, port)
@@ -144,7 +143,10 @@ class PoseStreamer:
             self.frame_count += 1
             return True
             
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
+            # OSError: Socket errors (network issues)
+            # ValueError: Invalid input dimensions
+            # TypeError: Invalid input types (e.g., cannot convert to float)
             print(f"PoseStreamer: Error sending data: {e}")
             return False
     
