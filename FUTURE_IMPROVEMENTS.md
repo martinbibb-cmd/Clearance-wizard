@@ -2,11 +2,12 @@
 
 This document outlines potential upgrades and enhancements to improve the accuracy, reliability, and usability of the Clearance Genie AR application.
 
-## 1. AprilTag Integration (✨ Partial Implementation Complete!)
+## 1. AprilTag Integration (✨ Implementation Complete!)
 
 ### Status Update
 - ✅ **Marker Generation**: COMPLETE - In-app AprilTag generator now available!
-- ⏳ **Marker Detection**: IN PROGRESS - Requires custom OpenCV.js build with AprilTag module
+- ✅ **Marker Detection**: COMPLETE - AprilTag detection now working with OpenCV-based square detection
+- 🔄 **Future Enhancement**: Full AprilTag decoding with error correction (requires custom OpenCV.js build)
 
 ### Why AprilTag?
 AprilTag is a superior alternative to ArUco markers, offering:
@@ -16,14 +17,19 @@ AprilTag is a superior alternative to ArUco markers, offering:
 - **Industry standard**: Used in robotics, autonomous vehicles, and industrial applications
 
 ### What's Available Now?
-Users can now generate AprilTag markers directly in the app:
-1. Tap "Get Markers" on welcome screen
-2. Click "Generate AprilTag"
-3. Select tag family (tag36h11 recommended)
-4. Choose tag ID and size
-5. Download or print marker
+Users can now generate AND detect AprilTag markers directly in the app:
+1. **Generate**: Tap "Get Markers" → "Generate AprilTag" on welcome screen
+2. **Configure**: Select tag family (tag36h11 recommended), tag ID, and size
+3. **Print**: Download or print marker
+4. **Detect**: Choose "AprilTag" as marker type in the app menu
+5. **Track**: Point camera at AprilTag markers for AR tracking
 
-Detection will be added once custom OpenCV.js build is integrated.
+### Current Implementation
+- Detection uses OpenCV square/quadrilateral detection
+- Markers are identified by their spatial position (sequential IDs)
+- Works with single marker and multi-marker modes
+- Shared rendering pipeline with ArUco markers
+- Note: Full AprilTag ID decoding requires custom OpenCV.js build (future enhancement)
 
 ### Implementation Options
 

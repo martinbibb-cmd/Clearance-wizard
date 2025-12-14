@@ -85,12 +85,13 @@ This application uses computer vision markers for precise AR tracking. **See [MA
 3. **Print size**: 190mm recommended (measure BLACK SQUARE only)
 4. **Print on white paper** with black ink
 
-**Option 2: AprilTag Markers (✨ New - Generation Available)**
+**Option 2: AprilTag Markers (✨ New - Now Available!)**
 1. **Generate in-app**: Tap "Get Markers" → "Generate AprilTag" on the welcome screen
 2. **Select family**: tag36h11 (recommended)
 3. **Choose size**: 190mm recommended
 4. **Download & print**: Use the built-in generator
-5. ⚠️ **Note**: AprilTag detection coming soon (requires OpenCV.js update)
+5. **Use detection**: Select "AprilTag" in the Marker Type dropdown during setup
+6. ✅ **Status**: AprilTag detection now available with simplified square-based detection
 
 ### Recommended Marker Sizes
 - 45mm - Close-up work (0.2m - 1m)
