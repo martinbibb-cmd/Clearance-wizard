@@ -97,6 +97,12 @@
 
     <div id="ui-layer">
         <div id="status-pill" class="hidden">Initializing...</div>
+        
+        <!-- Device Info Overlay (only visible in testing mode) -->
+        <div id="device-info-overlay" class="hidden" style="position: absolute; top: 100px; left: 10px; background: rgba(0, 0, 0, 0.8); color: white; padding: 15px; border-radius: 8px; font-size: 0.75rem; font-family: monospace; max-width: 300px; pointer-events: none; z-index: 15;">
+            <div style="font-weight: bold; margin-bottom: 8px; color: #00ff00;">🔬 Testing Mode</div>
+            <div id="device-info-content"></div>
+        </div>
 
         <div id="welcome-panel" class="card interactive">
             <h1>🔥 Clearance Genie</h1>
@@ -143,6 +149,16 @@
             </details>
 
             <button class="primary" onclick="App.showMainMenu()" style="margin-bottom: 10px; font-size: 1.1rem; padding: 15px;">🚀 Get Started</button>
+            
+            <!-- Testing Mode Toggle -->
+            <div style="background: #f0f7ff; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0;">
+                    <input type="checkbox" id="testing-mode-toggle" onchange="App.toggleTestingMode()" style="width: auto; margin: 0;">
+                    <span style="font-size: 0.85rem; color: #333;">
+                        <strong>🔬 Testing Mode</strong> - Show calibrated axes for debugging
+                    </span>
+                </label>
+            </div>
             
             <!-- Quick Links -->
             <div style="display: flex; gap: 10px; font-size: 0.75rem; justify-content: center; color: #666;">
@@ -237,6 +253,13 @@
                 <div style="margin-top: 10px;">
                     <label style="font-size: 0.8rem;">Depth Offset (mm)</label>
                     <input type="number" id="manual-depth-offset" min="-1000" max="1000" step="10" value="0" placeholder="Fine-tune depth" aria-label="Manual depth adjustment">
+                    
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-top: 10px;">
+                        <input type="checkbox" id="testing-mode-toggle-menu" onchange="App.toggleTestingMode()" style="width: auto; margin: 0;">
+                        <span style="font-size: 0.8rem; color: #666;">
+                            🔬 Testing Mode (Show calibrated axes)
+                        </span>
+                    </label>
                 </div>
             </details>
 
@@ -1026,6 +1049,7 @@ class GraphicsEngine {
         this.scene.add(this.root);
         this.stencil = null;
         this.parallaxEnabled = true;
+        this.calibrationAxes = null; // Group for calibration axes
     }
 
     setStencil(data) {
@@ -1157,6 +1181,188 @@ class GraphicsEngine {
         this.stencil.add(ring, zone);
     }
 
+    // Show calibration axes for testing mode
+    showCalibrationAxes() {
+        if (this.calibrationAxes) {
+            this.calibrationAxes.visible = true;
+            return;
+        }
+
+        this.calibrationAxes = new THREE.Group();
+        
+        // Axis length and tick spacing (in mm)
+        const axisLength = 1000; // 1 meter
+        const tickSpacing = 100;  // 10cm intervals
+        const tickHeight = 20;    // Height of tick marks
+        
+        // Colors for each axis (standard convention: X=red, Y=green, Z=blue)
+        const colors = {
+            x: 0xff0000, // Red
+            y: 0x00ff00, // Green
+            z: 0x0000ff  // Blue
+        };
+        
+        // Create each axis (X, Y, Z)
+        const axes = [
+            { name: 'X', color: colors.x, start: [0, 0, 0], end: [axisLength, 0, 0], labelOffset: [0, -30, 0] },
+            { name: 'Y', color: colors.y, start: [0, 0, 0], end: [0, axisLength, 0], labelOffset: [30, 0, 0] },
+            { name: 'Z', color: colors.z, start: [0, 0, 0], end: [0, 0, axisLength], labelOffset: [30, 0, 0] }
+        ];
+        
+        axes.forEach(axis => {
+            // Create main axis line
+            const points = [
+                new THREE.Vector3(...axis.start),
+                new THREE.Vector3(...axis.end)
+            ];
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+            const lineMaterial = new THREE.LineBasicMaterial({ 
+                color: axis.color,
+                linewidth: 3,
+                opacity: 0.8,
+                transparent: true
+            });
+            const line = new THREE.Line(lineGeometry, lineMaterial);
+            this.calibrationAxes.add(line);
+            
+            // Create arrow head at the end
+            const arrowSize = 40;
+            const arrowGeometry = new THREE.ConeGeometry(arrowSize / 2, arrowSize, 8);
+            const arrowMaterial = new THREE.MeshBasicMaterial({ 
+                color: axis.color,
+                opacity: 0.8,
+                transparent: true
+            });
+            const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+            
+            // Position and orient arrow
+            if (axis.name === 'X') {
+                arrow.position.set(axisLength, 0, 0);
+                arrow.rotation.z = -Math.PI / 2;
+            } else if (axis.name === 'Y') {
+                arrow.position.set(0, axisLength, 0);
+            } else if (axis.name === 'Z') {
+                arrow.position.set(0, 0, axisLength);
+                arrow.rotation.x = Math.PI / 2;
+            }
+            this.calibrationAxes.add(arrow);
+            
+            // Create tick marks along the axis
+            for (let i = tickSpacing; i <= axisLength; i += tickSpacing) {
+                const tickPoints = [];
+                
+                if (axis.name === 'X') {
+                    tickPoints.push(new THREE.Vector3(i, -tickHeight, 0));
+                    tickPoints.push(new THREE.Vector3(i, tickHeight, 0));
+                } else if (axis.name === 'Y') {
+                    tickPoints.push(new THREE.Vector3(-tickHeight, i, 0));
+                    tickPoints.push(new THREE.Vector3(tickHeight, i, 0));
+                } else if (axis.name === 'Z') {
+                    tickPoints.push(new THREE.Vector3(-tickHeight, 0, i));
+                    tickPoints.push(new THREE.Vector3(tickHeight, 0, i));
+                }
+                
+                const tickGeometry = new THREE.BufferGeometry().setFromPoints(tickPoints);
+                const tickMaterial = new THREE.LineBasicMaterial({ 
+                    color: axis.color,
+                    opacity: 0.6,
+                    transparent: true
+                });
+                const tick = new THREE.Line(tickGeometry, tickMaterial);
+                this.calibrationAxes.add(tick);
+                
+                // Add label using a small plane with canvas texture
+                if (i % (tickSpacing * 2) === 0) { // Label every 200mm
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 128;
+                    canvas.height = 64;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, 128, 64);
+                    ctx.fillStyle = 'black';
+                    ctx.font = 'bold 32px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(`${i/10}cm`, 64, 32);
+                    
+                    const texture = new THREE.CanvasTexture(canvas);
+                    const labelMaterial = new THREE.MeshBasicMaterial({ 
+                        map: texture, 
+                        transparent: true,
+                        opacity: 0.9,
+                        side: THREE.DoubleSide
+                    });
+                    const labelGeometry = new THREE.PlaneGeometry(60, 30);
+                    const label = new THREE.Mesh(labelGeometry, labelMaterial);
+                    
+                    // Position labels
+                    if (axis.name === 'X') {
+                        label.position.set(i, -50, 0);
+                    } else if (axis.name === 'Y') {
+                        label.position.set(-50, i, 0);
+                    } else if (axis.name === 'Z') {
+                        label.position.set(-50, 0, i);
+                    }
+                    
+                    this.calibrationAxes.add(label);
+                }
+            }
+            
+            // Create axis label at the end
+            const labelCanvas = document.createElement('canvas');
+            labelCanvas.width = 128;
+            labelCanvas.height = 128;
+            const labelCtx = labelCanvas.getContext('2d');
+            labelCtx.fillStyle = `rgb(${(axis.color >> 16) & 255}, ${(axis.color >> 8) & 255}, ${axis.color & 255})`;
+            labelCtx.fillRect(0, 0, 128, 128);
+            labelCtx.fillStyle = 'white';
+            labelCtx.font = 'bold 72px Arial';
+            labelCtx.textAlign = 'center';
+            labelCtx.textBaseline = 'middle';
+            labelCtx.fillText(axis.name, 64, 64);
+            
+            const labelTexture = new THREE.CanvasTexture(labelCanvas);
+            const axisLabelMaterial = new THREE.MeshBasicMaterial({ 
+                map: labelTexture, 
+                transparent: true,
+                side: THREE.DoubleSide
+            });
+            const axisLabelGeometry = new THREE.PlaneGeometry(80, 80);
+            const axisLabel = new THREE.Mesh(axisLabelGeometry, axisLabelMaterial);
+            
+            // Position axis label
+            axisLabel.position.set(
+                axis.end[0] + axis.labelOffset[0],
+                axis.end[1] + axis.labelOffset[1],
+                axis.end[2] + axis.labelOffset[2]
+            );
+            
+            this.calibrationAxes.add(axisLabel);
+        });
+        
+        // Add origin marker (sphere at 0,0,0)
+        const originGeometry = new THREE.SphereGeometry(25, 16, 16);
+        const originMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffff00,
+            opacity: 0.8,
+            transparent: true
+        });
+        const origin = new THREE.Mesh(originGeometry, originMaterial);
+        this.calibrationAxes.add(origin);
+        
+        // Add the axes to the root group (so they move with the marker)
+        this.root.add(this.calibrationAxes);
+        
+        console.log('Calibration axes created and displayed');
+    }
+
+    // Hide calibration axes
+    hideCalibrationAxes() {
+        if (this.calibrationAxes) {
+            this.calibrationAxes.visible = false;
+        }
+    }
+
     render() { this.renderer.render(this.scene, this.camera); }
 }
 
@@ -1173,6 +1379,7 @@ const App = {
     locked: false,
     cvReady: false,
     loadTimeoutId: null, // Timer to track long initialization
+    testingMode: false, // Testing mode flag
     
     // Contextual hint timing (milliseconds)
     HINT_DELAY_INITIAL: 3000,  // "Try moving closer"
@@ -1234,6 +1441,110 @@ const App = {
     // Core function to handle failed OpenCV script download (network error)
     onCvError: function() {
         this.handleInitializationFailure("OpenCV script failed to download (Network Error).");
+    },
+
+    // Initialize testing mode from URL parameters or localStorage
+    initTestingMode: function() {
+        // Check URL parameter first
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('testMode')) {
+            this.testingMode = urlParams.get('testMode') === 'true';
+        } else {
+            // Fall back to localStorage
+            const saved = localStorage.getItem('testingMode');
+            this.testingMode = saved === 'true';
+        }
+        
+        // Update checkbox states
+        const toggleWelcome = document.getElementById('testing-mode-toggle');
+        const toggleMenu = document.getElementById('testing-mode-toggle-menu');
+        if (toggleWelcome) toggleWelcome.checked = this.testingMode;
+        if (toggleMenu) toggleMenu.checked = this.testingMode;
+        
+        console.log('Testing mode initialized:', this.testingMode);
+    },
+
+    // Toggle testing mode on/off
+    toggleTestingMode: function() {
+        const toggleWelcome = document.getElementById('testing-mode-toggle');
+        const toggleMenu = document.getElementById('testing-mode-toggle-menu');
+        
+        // Get state from whichever checkbox was clicked
+        this.testingMode = toggleWelcome ? toggleWelcome.checked : toggleMenu.checked;
+        
+        // Sync both checkboxes
+        if (toggleWelcome) toggleWelcome.checked = this.testingMode;
+        if (toggleMenu) toggleMenu.checked = this.testingMode;
+        
+        // Save to localStorage
+        localStorage.setItem('testingMode', this.testingMode);
+        
+        // Update device info overlay visibility
+        const overlay = document.getElementById('device-info-overlay');
+        if (overlay) {
+            if (this.testingMode) {
+                overlay.classList.remove('hidden');
+                this.updateDeviceInfo();
+            } else {
+                overlay.classList.add('hidden');
+            }
+        }
+        
+        // Update graphics if already running
+        if (this.graphics) {
+            if (this.testingMode) {
+                this.graphics.showCalibrationAxes();
+            } else {
+                this.graphics.hideCalibrationAxes();
+            }
+        }
+        
+        console.log('Testing mode toggled:', this.testingMode);
+    },
+
+    // Update device information display
+    updateDeviceInfo: function() {
+        const content = document.getElementById('device-info-content');
+        if (!content) return;
+        
+        const deviceInfo = {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            screenWidth: window.screen.width,
+            screenHeight: window.screen.height,
+            devicePixelRatio: window.devicePixelRatio,
+            markerSize: this.markerSize,
+            markerType: this.markerType,
+            detectionMode: this.detectionMode
+        };
+        
+        // Try to extract device model from userAgent
+        let deviceModel = 'Unknown';
+        const ua = navigator.userAgent;
+        if (/iPhone/.test(ua)) {
+            deviceModel = 'iPhone';
+            const match = ua.match(/iPhone\s*(\w+)/);
+            if (match) deviceModel = match[0];
+        } else if (/iPad/.test(ua)) {
+            deviceModel = 'iPad';
+        } else if (/Android/.test(ua)) {
+            const match = ua.match(/Android.*;\s*([^)]+)\)/);
+            if (match) deviceModel = match[1].trim();
+        } else if (/Windows/.test(ua)) {
+            deviceModel = 'Windows PC';
+        } else if (/Mac/.test(ua)) {
+            deviceModel = 'Mac';
+        }
+        
+        content.innerHTML = `
+            <div style="margin-bottom: 5px;"><strong>Device:</strong> ${deviceModel}</div>
+            <div style="margin-bottom: 5px;"><strong>Screen:</strong> ${deviceInfo.screenWidth}×${deviceInfo.screenHeight}</div>
+            <div style="margin-bottom: 5px;"><strong>Pixel Ratio:</strong> ${deviceInfo.devicePixelRatio}×</div>
+            <div style="margin-bottom: 5px;"><strong>Marker Size:</strong> ${deviceInfo.markerSize}mm</div>
+            <div style="margin-bottom: 5px;"><strong>Marker Type:</strong> ${deviceInfo.markerType}</div>
+            <div style="margin-bottom: 5px;"><strong>Detection Mode:</strong> ${deviceInfo.detectionMode}</div>
+            ${this.graphics && this.graphics.root ? `<div style="margin-bottom: 5px; color: #00ff00;"><strong>Position:</strong> (${this.graphics.root.position.x.toFixed(1)}, ${this.graphics.root.position.y.toFixed(1)}, ${this.graphics.root.position.z.toFixed(1)})mm</div>` : ''}
+        `;
     },
 
     // Show main menu from welcome screen
@@ -1403,6 +1714,14 @@ const App = {
 
         this.graphics = new GraphicsEngine(document.getElementById('ar-layer'));
         this.graphics.setStencil(data);
+        
+        // Enable testing mode features if active
+        if (this.testingMode) {
+            this.graphics.showCalibrationAxes();
+            document.getElementById('device-info-overlay').classList.remove('hidden');
+            this.updateDeviceInfo();
+        }
+        
         this.setupTouch();
         await this.vision.init(video, this.markerType);
         this.loop();
@@ -1486,6 +1805,16 @@ const App = {
             // Reset no detection timer when marker is found
             if (pose) {
                 this._noDetectionTime = null;
+            }
+        }
+        
+        // Update device info in testing mode
+        if (this.testingMode && this.graphics) {
+            // Update every 30 frames to avoid performance impact
+            if (!this._deviceInfoFrameCount) this._deviceInfoFrameCount = 0;
+            if (++this._deviceInfoFrameCount >= 30) {
+                this.updateDeviceInfo();
+                this._deviceInfoFrameCount = 0;
             }
         }
     },
@@ -2031,6 +2360,13 @@ if ('serviceWorker' in navigator) {
         });
     });
 }
+
+// ==========================================
+// 🚀 INITIALIZE TESTING MODE ON PAGE LOAD
+// ==========================================
+window.addEventListener('DOMContentLoaded', () => {
+    App.initTestingMode();
+});
 </script>
 </body>
 </html>
