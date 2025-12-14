@@ -10,12 +10,14 @@ Components:
     - IMUProcessor: Pre-integrates IMU measurements between image frames
     - EKFFusionEngine: Fuses IMU and visual data using an Extended Kalman Filter
     - ARBridge: Streams VIO state to external AR rendering clients
+    - PoseStreamer: Lightweight pose streaming for 3D rendering
 """
 
 from .apriltag_detector import AprilTagDetector
 from .imu_processor import IMUProcessor
 from .ekf_fusion_engine import EKFFusionEngine
 from .ar_bridge import ARBridge
+from .pose_streamer import PoseStreamer
 
 __version__ = '0.1.0'
-__all__ = ['AprilTagDetector', 'IMUProcessor', 'EKFFusionEngine', 'ARBridge']
+__all__ = ['AprilTagDetector', 'IMUProcessor', 'EKFFusionEngine', 'ARBridge', 'PoseStreamer']
