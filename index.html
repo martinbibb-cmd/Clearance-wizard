@@ -173,8 +173,11 @@
             </label>
             <select id="input-marker-type" onchange="App.onMarkerTypeChange()" style="font-size: 0.95rem;">
                 <option value="aruco">ArUco (DICT_4X4_50)</option>
-                <option value="apriltag">✨ AprilTag (tag36h11)</option>
+                <option value="apriltag">✨ AprilTag (Default: tag36h11)</option>
             </select>
+            <p style="font-size: 0.75rem; color: #666; margin: -10px 0 10px 0;">
+                💡 AprilTag uses tag36h11 family by default. Generate markers using the in-app generator.
+            </p>
 
             <!-- Marker Size -->
             <div id="single-marker-size-container">
