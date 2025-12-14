@@ -1854,12 +1854,22 @@ class GraphicsEngine {
             { color: 0x0000ff, start: [0, 0, 0], end: [0, 0, axisLength] }  // Z - Blue
         ];
         
+        // Reuse geometry for tick marks (all ticks are same size)
+        const tickGeometry = new THREE.SphereGeometry(5, 8, 8);
+        
+        // Reuse vectors to avoid allocations
+        const startVec = new THREE.Vector3();
+        const endVec = new THREE.Vector3();
+        const tickPos = new THREE.Vector3();
+        
         axes.forEach(({ color, start, end }) => {
-            const points = [
-                new THREE.Vector3(...start),
-                new THREE.Vector3(...end)
-            ];
-            const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+            // Create axis line
+            startVec.set(...start);
+            endVec.set(...end);
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                startVec.clone(),
+                endVec.clone()
+            ]);
             const lineMaterial = new THREE.LineBasicMaterial({ 
                 color: color
                 // Note: linewidth property is deprecated in WebGL and ignored by most browsers
@@ -1867,15 +1877,11 @@ class GraphicsEngine {
             const line = new THREE.Line(lineGeometry, lineMaterial);
             this.debugTestObjects.add(line);
             
-            // Add tick marks at 100mm intervals
-            const startVec = new THREE.Vector3(...start);
-            const endVec = new THREE.Vector3(...end);
-            const tickPos = new THREE.Vector3();
+            // Add tick marks at 100mm intervals (reuse geometry and vectors)
+            const tickMaterial = new THREE.MeshBasicMaterial({ color: color });
             for (let i = 1; i <= 3; i++) {
                 const t = (i * 100) / axisLength;
                 tickPos.lerpVectors(startVec, endVec, t);
-                const tickGeometry = new THREE.SphereGeometry(5, 8, 8);
-                const tickMaterial = new THREE.MeshBasicMaterial({ color: color });
                 const tick = new THREE.Mesh(tickGeometry, tickMaterial);
                 tick.position.copy(tickPos);
                 this.debugTestObjects.add(tick);
