@@ -53,7 +53,6 @@ class ARBridge:
         """Initialize the AR Bridge."""
         # Create UDP socket
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
         # Set target address for sending data
         if target_host is None:
@@ -127,7 +126,10 @@ class ARBridge:
             self.frame_count += 1
             return True
             
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
+            # OSError: Socket errors (network issues)
+            # ValueError: Invalid data conversion
+            # TypeError: Invalid input types
             print(f"ARBridge: Error sending data: {e}")
             return False
     
