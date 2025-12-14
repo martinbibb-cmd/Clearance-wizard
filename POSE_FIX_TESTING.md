@@ -282,7 +282,7 @@ All points have Z=0, confirming they are coplanar and lie in the marker's XY pla
 - Problem statement: GitHub issue describing "standing up" objects
 - OpenCV solvePnP documentation: https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html
 - Three.js Matrix4 documentation: https://threejs.org/docs/#api/en/math/Matrix4
-- Coordinate system conventions: PLANE_ALIGNMENT_TESTING.md
+- Related documentation: PLANE_ALIGNMENT_TESTING.md (previous alignment work)
 
 ## Success Criteria
 

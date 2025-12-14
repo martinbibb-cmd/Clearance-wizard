@@ -1861,18 +1861,19 @@ class GraphicsEngine {
             ];
             const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
             const lineMaterial = new THREE.LineBasicMaterial({ 
-                color: color,
-                linewidth: 3 // Note: may not work on all platforms, but doesn't hurt
+                color: color
+                // Note: linewidth property is deprecated in WebGL and ignored by most browsers
             });
             const line = new THREE.Line(lineGeometry, lineMaterial);
             this.debugTestObjects.add(line);
             
             // Add tick marks at 100mm intervals
+            const startVec = new THREE.Vector3(...start);
+            const endVec = new THREE.Vector3(...end);
+            const tickPos = new THREE.Vector3();
             for (let i = 1; i <= 3; i++) {
-                const tickPos = new THREE.Vector3(...start).lerp(
-                    new THREE.Vector3(...end), 
-                    (i * 100) / axisLength
-                );
+                const t = (i * 100) / axisLength;
+                tickPos.lerpVectors(startVec, endVec, t);
                 const tickGeometry = new THREE.SphereGeometry(5, 8, 8);
                 const tickMaterial = new THREE.MeshBasicMaterial({ color: color });
                 const tick = new THREE.Mesh(tickGeometry, tickMaterial);
