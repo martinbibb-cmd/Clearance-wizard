@@ -525,24 +525,70 @@ class VisionSystem {
         const userAgent = navigator.userAgent;
         console.log('Detecting device from user agent:', userAgent);
         
-        // Try to match specific device models
-        for (const [deviceKey, profile] of Object.entries(VisionSystem.DEVICE_PROFILES)) {
-            if (deviceKey !== 'default' && userAgent.includes(deviceKey)) {
-                console.log(`Matched device profile: ${deviceKey}`);
-                return { name: deviceKey, ...profile };
-            }
+        // Check specific device patterns in priority order (most specific first)
+        // Use regex/word boundaries to avoid false matches
+        
+        // iPhone specific models (check most recent first)
+        if (/iPhone\s*15/i.test(userAgent)) {
+            console.log('Matched iPhone 15 profile');
+            return { name: 'iPhone 15', ...VisionSystem.DEVICE_PROFILES['iPhone 15'] };
+        }
+        if (/iPhone\s*14/i.test(userAgent)) {
+            console.log('Matched iPhone 14 profile');
+            return { name: 'iPhone 14', ...VisionSystem.DEVICE_PROFILES['iPhone 14'] };
+        }
+        if (/iPhone\s*13/i.test(userAgent)) {
+            console.log('Matched iPhone 13 profile');
+            return { name: 'iPhone 13', ...VisionSystem.DEVICE_PROFILES['iPhone 13'] };
+        }
+        if (/iPhone\s*12/i.test(userAgent)) {
+            console.log('Matched iPhone 12 profile');
+            return { name: 'iPhone 12', ...VisionSystem.DEVICE_PROFILES['iPhone 12'] };
+        }
+        if (/iPhone\s*11/i.test(userAgent)) {
+            console.log('Matched iPhone 11 profile');
+            return { name: 'iPhone 11', ...VisionSystem.DEVICE_PROFILES['iPhone 11'] };
         }
         
-        // Check for generic device types
-        if (userAgent.includes('iPhone')) {
-            console.log('Matched generic iPhone profile');
-            return { name: 'iPhone', ...VisionSystem.DEVICE_PROFILES['iPhone'] };
+        // Google Pixel specific models
+        if (/Pixel\s*8/i.test(userAgent)) {
+            console.log('Matched Pixel 8 profile');
+            return { name: 'Pixel 8', ...VisionSystem.DEVICE_PROFILES['Pixel 8'] };
         }
-        if (userAgent.includes('iPad')) {
+        if (/Pixel\s*7/i.test(userAgent)) {
+            console.log('Matched Pixel 7 profile');
+            return { name: 'Pixel 7', ...VisionSystem.DEVICE_PROFILES['Pixel 7'] };
+        }
+        if (/Pixel\s*6/i.test(userAgent)) {
+            console.log('Matched Pixel 6 profile');
+            return { name: 'Pixel 6', ...VisionSystem.DEVICE_PROFILES['Pixel 6'] };
+        }
+        
+        // Samsung Galaxy series (use more specific patterns)
+        // SM-G for Galaxy S series, SM-A for Galaxy A series
+        if (/\bSM-G\d{3}/i.test(userAgent)) {
+            console.log('Matched Samsung Galaxy S series profile (SM-G)');
+            return { name: 'SM-G', ...VisionSystem.DEVICE_PROFILES['SM-G'] };
+        }
+        if (/\bSM-A\d{3}/i.test(userAgent)) {
+            console.log('Matched Samsung Galaxy A series profile (SM-A)');
+            return { name: 'SM-A', ...VisionSystem.DEVICE_PROFILES['SM-A'] };
+        }
+        
+        // Generic device types
+        if (/iPad/i.test(userAgent)) {
             console.log('Matched generic iPad profile');
             return { name: 'iPad', ...VisionSystem.DEVICE_PROFILES['iPad'] };
         }
-        if (userAgent.includes('Android')) {
+        if (/iPhone/i.test(userAgent)) {
+            console.log('Matched generic iPhone profile');
+            return { name: 'iPhone', ...VisionSystem.DEVICE_PROFILES['iPhone'] };
+        }
+        if (/Pixel/i.test(userAgent)) {
+            console.log('Matched generic Pixel profile');
+            return { name: 'Pixel', ...VisionSystem.DEVICE_PROFILES['Pixel'] };
+        }
+        if (/Android/i.test(userAgent)) {
             console.log('Matched generic Android profile (using default)');
             return { name: 'Android', ...VisionSystem.DEVICE_PROFILES['default'] };
         }
@@ -564,16 +610,15 @@ class VisionSystem {
             console.log('Device profile:', this.deviceProfile);
             
             // Update distortion coefficients with device-specific values
+            // Note: We keep the original distCoeffs allocated during init() to avoid memory issues
+            // Only update the values when lens correction is enabled
             if (this.distCoeffs) {
-                this.distCoeffs.delete();
+                // Update existing distCoeffs with device-specific values
+                for (let i = 0; i < 5; i++) {
+                    this.distCoeffs.data64F[i] = this.deviceProfile.distCoeffs[i];
+                }
             }
-            this.distCoeffs = cv.matFromArray(5, 1, cv.CV_64F, this.deviceProfile.distCoeffs);
             console.log('Updated distortion coefficients:', this.deviceProfile.distCoeffs);
-            
-            // Allocate undistorted image buffer if not exists
-            if (!this.undistortedGray && this.gray) {
-                this.undistortedGray = new cv.Mat();
-            }
         }
     }
 
@@ -697,29 +742,25 @@ class VisionSystem {
         cv.cvtColor(this.src, this.gray, cv.COLOR_RGBA2GRAY);
 
         // Apply lens correction if enabled (corrects chromatic aberration and distortion)
-        let processedGray = this.gray;
         if (this.lensCorrection && this.cameraMatrix && this.distCoeffs) {
-            // Ensure undistorted buffer exists
+            // Ensure undistorted buffer exists with proper dimensions
             if (!this.undistortedGray) {
-                this.undistortedGray = new cv.Mat();
+                this.undistortedGray = new cv.Mat(this.gray.rows, this.gray.cols, this.gray.type());
             }
             
             // Apply undistortion to correct lens distortion
             // This removes barrel/pincushion distortion and chromatic aberration
             cv.undistort(this.gray, this.undistortedGray, this.cameraMatrix, this.distCoeffs);
-            processedGray = this.undistortedGray;
-        }
-
-        // Apply histogram equalization for better contrast in challenging lighting
-        // This helps detect markers in poor lighting or high contrast situations
-        cv.equalizeHist(processedGray, processedGray);
-        
-        // Update gray reference for detection methods
-        if (this.lensCorrection && processedGray !== this.gray) {
-            // Swap references so detection uses undistorted image
-            const temp = this.gray;
-            this.gray = processedGray;
-            processedGray = temp;
+            
+            // Use undistorted image for subsequent processing
+            // Apply histogram equalization to undistorted image
+            cv.equalizeHist(this.undistortedGray, this.undistortedGray);
+            
+            // Copy undistorted result back to gray for detection
+            this.undistortedGray.copyTo(this.gray);
+        } else {
+            // Apply histogram equalization directly if no lens correction
+            cv.equalizeHist(this.gray, this.gray);
         }
 
         // Route to appropriate detector
