@@ -127,6 +127,36 @@ Enable Testing Mode in three ways:
 - **[TESTING_MODE_VERIFICATION.md](TESTING_MODE_VERIFICATION.md)**: QA checklist for cross-device testing
 - **[TESTING_MODE_IMPLEMENTATION_SUMMARY.md](TESTING_MODE_IMPLEMENTATION_SUMMARY.md)**: Technical architecture details
 
+## Lens Correction 🔍
+
+Improve marker detection accuracy by correcting for lens distortion and chromatic aberration:
+
+### Features
+- **Automatic Device Detection**: Recognizes iPhone, iPad, Samsung, Pixel devices
+- **Device-Specific Profiles**: Uses known distortion coefficients for common devices
+- **Chromatic Aberration Correction**: Reduces color fringing at frame edges
+- **OpenCV Undistortion**: High-performance lens correction using cv.undistort()
+
+### How to Enable
+1. Open "⚙️ Advanced Settings" in the menu
+2. Check "🔍 Lens Correction (chromatic aberration)"
+3. Setting persists across sessions
+
+### When to Use
+- Wide-angle cameras (common on newer phones)
+- Markers near the edges of the frame
+- Steep viewing angles
+- Inconsistent detection at frame edges
+
+### Supported Devices
+iPhone (11-15 series), iPad, Samsung Galaxy (S/A series), Google Pixel (6-8 series), and generic Android/iOS fallback profiles.
+
+See **[LENS_CORRECTION.md](LENS_CORRECTION.md)** for complete documentation and technical details.
+
+## Parallax Image Support
+
+Parallax image support is **enabled by default** through the plane alignment feature. All AR objects are rendered directly on the plane of the detected marker, regardless of orientation (flat, tilted, or vertical). See [PLANE_ALIGNMENT_TESTING.md](PLANE_ALIGNMENT_TESTING.md) for details.
+
 ## Capturing Images
 
 The app includes an image capture feature with smart saving:
