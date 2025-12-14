@@ -25,13 +25,13 @@ class ARBridge:
     Parameters
     ----------
     host : str, optional
-        IP address to bind to. Default is '127.0.0.1' (localhost).
+        Default IP address for target_host if not specified. Default is '127.0.0.1' (localhost).
     port : int, optional
-        UDP port to send data to. Default is 9999.
+        Default UDP port for target_port if not specified. Default is 9999.
     target_host : str, optional
-        Target IP address for sending data. Default is '127.0.0.1'.
+        Target IP address for sending data. If None, uses host parameter.
     target_port : int, optional
-        Target UDP port for sending data. Default is 9999.
+        Target UDP port for sending data. If None, uses port parameter.
     
     Attributes
     ----------
@@ -55,7 +55,7 @@ class ARBridge:
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
-        # Bind to host/port if different from target
+        # Set target address for sending data
         if target_host is None:
             target_host = host
         if target_port is None:
