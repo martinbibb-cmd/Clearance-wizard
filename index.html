@@ -291,6 +291,14 @@
                     </label>
                     
                     <label style="display: flex; align-items: center; gap: 10px; margin-top: 15px; font-size: 0.8rem; cursor: pointer;">
+                        <input type="checkbox" id="debug-test-objects-checkbox" onchange="App.toggleDebugTestObjects(event)" style="width: auto; margin: 0;">
+                        <span>🎯 Debug Plane (test alignment)</span>
+                    </label>
+                    <p style="font-size: 0.7rem; color: #888; margin: 5px 0 0 30px;">
+                        Shows plane, sphere, cube with axis lines to verify pose alignment
+                    </p>
+                    
+                    <label style="display: flex; align-items: center; gap: 10px; margin-top: 15px; font-size: 0.8rem; cursor: pointer;">
                         <input type="checkbox" id="lens-correction-checkbox" onchange="App.toggleLensCorrection(event)" style="width: auto; margin: 0;">
                         <span>🔍 Lens Correction (chromatic aberration)</span>
                     </label>
@@ -1475,6 +1483,7 @@ class GraphicsEngine {
         this.stencil = null;
         this.parallaxEnabled = true;
         this.calibrationAxes = null;
+        this.debugTestObjects = null;
         
         // Smoothing factors for stable AR tracking
         this.POSITION_SMOOTH_FACTOR = 0.2;  // Position interpolation (0-1, higher = faster response)
@@ -1618,10 +1627,9 @@ class GraphicsEngine {
      */
     applyTransformationMatrix(transformMatrix, depthOffset = 0) {
         // OpenCV returns transformation from marker to camera
-        // We need camera to marker (inverse) for rendering
+        // transformMatrix is in row-major order: [R00, R01, R02, Tx, R10, R11, R12, Ty, R20, R21, R22, Tz, 0, 0, 0, 1]
         
         // Extract rotation matrix (3x3) and translation vector from 4x4 matrix
-        // transformMatrix is in row-major order: [R00, R01, R02, Tx, R10, R11, R12, Ty, R20, R21, R22, Tz, 0, 0, 0, 1]
         const R = [
             transformMatrix[0], transformMatrix[1], transformMatrix[2],
             transformMatrix[4], transformMatrix[5], transformMatrix[6],
@@ -1634,54 +1642,55 @@ class GraphicsEngine {
             transformMatrix[11]
         ];
         
+        // Build the complete 4x4 transformation matrix from OpenCV
+        // This is [R | t] in homogeneous coordinates
+        const poseCV = new THREE.Matrix4();
+        poseCV.set(
+            R[0], R[1], R[2], T[0],
+            R[3], R[4], R[5], T[1],
+            R[6], R[7], R[8], T[2],
+            0,    0,    0,    1
+        );
+        
         // OpenCV coordinate system: X right, Y down, Z forward (into scene)
         // Three.js coordinate system: X right, Y up, Z backward (out of scene)
-        // Need to convert between these coordinate systems
-        
-        // Apply coordinate system transformation
-        // Flip Y and Z axes to convert from OpenCV to Three.js
-        const cvToThreeRotation = new THREE.Matrix4();
-        cvToThreeRotation.set(
+        // 
+        // Apply axis flip matrix to convert from OpenCV to WebGL/Three.js coordinates
+        // F = diag(1, -1, -1, 1) flips Y and Z axes
+        const axisFlip = new THREE.Matrix4();
+        axisFlip.set(
             1,  0,  0, 0,
             0, -1,  0, 0,
             0,  0, -1, 0,
             0,  0,  0, 1
         );
         
-        // Create rotation matrix in Three.js format
-        const rotMatrix = new THREE.Matrix4();
-        rotMatrix.set(
-            R[0], R[3], R[6], 0,
-            R[1], R[4], R[7], 0,
-            R[2], R[5], R[8], 0,
-            0,    0,    0,    1
-        );
+        // Convert pose: pose_webgl = F * pose_opencv
+        const poseWebGL = new THREE.Matrix4();
+        poseWebGL.multiplyMatrices(axisFlip, poseCV);
         
-        // Apply coordinate system conversion
-        rotMatrix.premultiply(cvToThreeRotation);
+        // Apply depth offset along camera Z axis (in OpenCV coordinates, before flip)
+        if (depthOffset !== 0) {
+            const offsetMatrix = new THREE.Matrix4();
+            offsetMatrix.makeTranslation(0, 0, depthOffset);
+            // Apply offset in OpenCV space, then convert to WebGL
+            const poseWithOffset = new THREE.Matrix4();
+            poseWithOffset.multiplyMatrices(poseCV, offsetMatrix);
+            poseWebGL.multiplyMatrices(axisFlip, poseWithOffset);
+        }
         
-        // Apply depth offset to translation (along camera Z axis)
-        const offsetT = [
-            T[0],
-            T[1],
-            T[2] + depthOffset
-        ];
-        
-        // Convert translation from OpenCV to Three.js coordinates
-        const translationThree = new THREE.Vector3(
-            offsetT[0],
-            -offsetT[1],  // Flip Y
-            -offsetT[2]   // Flip Z
-        );
+        // Extract position and rotation from the converted matrix
+        const position = new THREE.Vector3();
+        const quaternion = new THREE.Quaternion();
+        const scale = new THREE.Vector3();
+        poseWebGL.decompose(position, quaternion, scale);
         
         // Smoothly interpolate to new transformation
         // Update position with smoothing
-        this.root.position.lerp(translationThree, this.POSITION_SMOOTH_FACTOR);
+        this.root.position.lerp(position, this.POSITION_SMOOTH_FACTOR);
         
         // Update rotation with smoothing (slightly slower for more stable rotation)
-        const targetQuaternion = new THREE.Quaternion();
-        targetQuaternion.setFromRotationMatrix(rotMatrix);
-        this.root.quaternion.slerp(targetQuaternion, this.ROTATION_SMOOTH_FACTOR);
+        this.root.quaternion.slerp(quaternion, this.ROTATION_SMOOTH_FACTOR);
     }
 
     showCalibrationAxes() {
@@ -1794,6 +1803,101 @@ class GraphicsEngine {
         }
     }
 
+    /**
+     * Show debug test objects to verify pose alignment
+     * Renders a plane, sphere, and cube with colored axis lines
+     * This helps verify that 3D objects properly align with the marker plane
+     */
+    showDebugTestObjects() {
+        if (this.debugTestObjects) {
+            this.root.remove(this.debugTestObjects);
+        }
+        
+        this.debugTestObjects = new THREE.Group();
+        
+        // 1. Create a flat plane aligned to marker (helps verify plane alignment)
+        const planeSize = 200; // Match typical marker size
+        const planeGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
+        const planeMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            opacity: 0.5,
+            transparent: true,
+            side: THREE.DoubleSide
+        });
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        // Plane should lie flat on XY plane (marker plane in marker coordinates)
+        this.debugTestObjects.add(plane);
+        
+        // 2. Create origin sphere (yellow) at marker center
+        const sphereGeometry = new THREE.SphereGeometry(20, 32, 32);
+        const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        this.debugTestObjects.add(sphere);
+        
+        // 3. Create a cube slightly above the marker plane
+        const cubeSize = 100;
+        const cubeGeometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+        const cubeMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff00ff,
+            opacity: 0.7,
+            transparent: true
+        });
+        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+        cube.position.set(0, 0, cubeSize / 2); // Position cube so bottom sits on plane
+        this.debugTestObjects.add(cube);
+        
+        // 4. Create colored axis lines extending from origin
+        const axisLength = 300;
+        const axes = [
+            { color: 0xff0000, start: [0, 0, 0], end: [axisLength, 0, 0] }, // X - Red
+            { color: 0x00ff00, start: [0, 0, 0], end: [0, axisLength, 0] }, // Y - Green  
+            { color: 0x0000ff, start: [0, 0, 0], end: [0, 0, axisLength] }  // Z - Blue
+        ];
+        
+        // Reuse geometry for tick marks (all ticks are same size)
+        const tickGeometry = new THREE.SphereGeometry(5, 8, 8);
+        
+        // Reuse vectors to avoid allocations
+        const startVec = new THREE.Vector3();
+        const endVec = new THREE.Vector3();
+        const tickPos = new THREE.Vector3();
+        
+        axes.forEach(({ color, start, end }) => {
+            // Create axis line
+            startVec.set(...start);
+            endVec.set(...end);
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                startVec.clone(),
+                endVec.clone()
+            ]);
+            const lineMaterial = new THREE.LineBasicMaterial({ 
+                color: color
+                // Note: linewidth property is deprecated in WebGL and ignored by most browsers
+            });
+            const line = new THREE.Line(lineGeometry, lineMaterial);
+            this.debugTestObjects.add(line);
+            
+            // Add tick marks at 100mm intervals (reuse geometry and vectors)
+            const tickMaterial = new THREE.MeshBasicMaterial({ color: color });
+            for (let i = 1; i <= 3; i++) {
+                const t = (i * 100) / axisLength;
+                tickPos.lerpVectors(startVec, endVec, t);
+                const tick = new THREE.Mesh(tickGeometry, tickMaterial);
+                tick.position.copy(tickPos);
+                this.debugTestObjects.add(tick);
+            }
+        });
+        
+        this.root.add(this.debugTestObjects);
+    }
+    
+    hideDebugTestObjects() {
+        if (this.debugTestObjects) {
+            this.root.remove(this.debugTestObjects);
+            this.debugTestObjects = null;
+        }
+    }
+
     render() { this.renderer.render(this.scene, this.camera); }
 }
 
@@ -1826,6 +1930,9 @@ const App = {
         
         // Initialize lens correction from localStorage
         this.initLensCorrection();
+        
+        // Initialize debug test objects from localStorage
+        this.initDebugTestObjects();
         
         // Start a timeout. If initialization is not complete after 10 seconds, assume failure.
         this.loadTimeoutId = setTimeout(() => {
@@ -1895,6 +2002,19 @@ const App = {
         console.log(`Lens correction initialized: ${storedLensCorrection}`);
     },
     
+    initDebugTestObjects: function() {
+        // Check localStorage for debug test objects preference
+        const storedDebugTestObjects = localStorage.getItem('debugTestObjects') === 'true';
+        
+        // Sync UI checkbox
+        const debugCheckbox = document.getElementById('debug-test-objects-checkbox');
+        if (debugCheckbox) {
+            debugCheckbox.checked = storedDebugTestObjects;
+        }
+        
+        console.log(`Debug test objects initialized: ${storedDebugTestObjects}`);
+    },
+    
     toggleTestingMode: function(event) {
         this.testingMode = event.target.checked;
         
@@ -1938,6 +2058,24 @@ const App = {
                 ? '🔍 Lens correction enabled - distortion will be corrected based on device'
                 : 'Lens correction disabled';
             console.log(message);
+        }
+    },
+    
+    toggleDebugTestObjects: function(event) {
+        const enabled = event.target.checked;
+        
+        // Persist to localStorage
+        localStorage.setItem('debugTestObjects', enabled);
+        
+        // Toggle visibility if graphics engine exists
+        if (this.graphics) {
+            if (enabled) {
+                this.graphics.showDebugTestObjects();
+                console.log('🎯 Debug test objects enabled - showing plane, sphere, cube with axis lines');
+            } else {
+                this.graphics.hideDebugTestObjects();
+                console.log('Debug test objects disabled');
+            }
         }
     },
     
@@ -2178,6 +2316,12 @@ const App = {
         if (this.testingMode) {
             this.graphics.showCalibrationAxes();
             document.getElementById('device-info-overlay').classList.remove('hidden');
+        }
+        
+        // Show debug test objects if enabled
+        const debugTestObjects = localStorage.getItem('debugTestObjects') === 'true';
+        if (debugTestObjects) {
+            this.graphics.showDebugTestObjects();
         }
         
         this.setupTouch();
