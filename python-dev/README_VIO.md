@@ -38,6 +38,13 @@ This provides robust and accurate 3D pose tracking even when markers are tempora
 - **Prediction step:** Uses IMU pre-integration
 - **Update step:** Uses AprilTag pose measurements
 
+#### 4. ARBridge (`vio/ar_bridge.py`)
+- Streams VIO state to external AR rendering clients
+- Uses UDP socket with JSON format
+- Compatible with Unity, WebGL, Three.js
+- Real-time pose data for 3D visualization
+- Includes sample client for testing
+
 ### Main Application (`main.py`)
 - Demonstrates the complete VIO pipeline
 - Simulates synced image and IMU data
@@ -282,6 +289,41 @@ state = ekf.get_state()
 # - accel_bias: Accelerometer bias
 ```
 
+### ARBridge
+
+```python
+from vio import ARBridge
+
+# Initialize AR bridge for streaming to rendering client
+bridge = ARBridge(
+    host='127.0.0.1',      # Localhost
+    port=9999              # UDP port
+)
+
+# Stream EKF state to AR client
+state = ekf.get_state()
+bridge.send_ekf_state(state, timestamp=time.time())
+
+# Or send individual components
+bridge.send_state(
+    position=state['position'],
+    velocity=state['velocity'],
+    orientation=state['orientation'],
+    quaternion=state['quaternion'],
+    gyro_bias=state['gyro_bias'],
+    accel_bias=state['accel_bias'],
+    timestamp=time.time(),
+    extra_data={'frame': 123, 'detections': 1}
+)
+
+# Close when done
+bridge.close()
+
+# Or use as context manager
+with ARBridge(port=9999) as bridge:
+    bridge.send_ekf_state(state)
+```
+
 ## Configuration
 
 ### Tuning EKF Parameters
@@ -357,6 +399,173 @@ gyro_data, accel_data = IMUProcessor.simulate_imu_data(
 3. **Lighting conditions:** Poor lighting affects tag detection
 4. **Tag size:** Smaller tags harder to detect at distance
 
+## AR Visualization
+
+### Streaming to 3D Rendering Clients
+
+The ARBridge component enables real-time streaming of VIO pose data to external 3D rendering applications for Augmented Reality visualization.
+
+#### Quick Start
+
+**Example: Streaming VIO data**
+
+```bash
+# Run the AR bridge example
+python example_ar_bridge.py --duration 10 --port 9999
+
+# In another terminal, run the sample client
+python example_ar_bridge.py --client --port 9999
+```
+
+#### Integration with Unity/WebGL/Three.js
+
+The ARBridge streams JSON data via UDP that can be consumed by any rendering engine:
+
+**JSON Message Format:**
+```json
+{
+  "frame": 123,
+  "timestamp": 1234567890.123,
+  "pose": {
+    "position": {"x": 1.5, "y": 2.0, "z": 0.5},
+    "orientation": {
+      "quaternion": {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0},
+      "euler": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0}
+    }
+  },
+  "velocity": {"x": 0.1, "y": 0.2, "z": 0.0},
+  "biases": {
+    "gyroscope": {"x": 0.01, "y": 0.02, "z": 0.03},
+    "accelerometer": {"x": 0.001, "y": 0.002, "z": 0.003}
+  },
+  "extra": {
+    "detections": 1,
+    "has_visual_update": true
+  }
+}
+```
+
+#### Use Cases
+
+1. **3D Model Overlay:** Place virtual 3D models (e.g., boiler controls) aligned with real-world objects
+2. **Measurement Visualization:** Show distance measurements and annotations in AR
+3. **System Monitoring:** Visualize clearance zones and safety boundaries
+4. **Training Applications:** Interactive AR instructions overlaid on equipment
+
+#### Example: Unity Client (C#)
+
+```csharp
+using UnityEngine;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+
+public class VIOReceiver : MonoBehaviour
+{
+    private UdpClient udpClient;
+    public Transform targetObject;
+    
+    void Start()
+    {
+        udpClient = new UdpClient(9999);
+        udpClient.BeginReceive(ReceiveCallback, null);
+    }
+    
+    void ReceiveCallback(IAsyncResult ar)
+    {
+        IPEndPoint endpoint = new IPEndPoint(IPAddress.Any, 9999);
+        byte[] data = udpClient.EndReceive(ar, ref endpoint);
+        string json = Encoding.UTF8.GetString(data);
+        
+        // Parse JSON and update object transform
+        VIOData vioData = JsonUtility.FromJson<VIOData>(json);
+        targetObject.position = new Vector3(
+            vioData.pose.position.x,
+            vioData.pose.position.y,
+            vioData.pose.position.z
+        );
+        targetObject.rotation = new Quaternion(
+            vioData.pose.orientation.quaternion.x,
+            vioData.pose.orientation.quaternion.y,
+            vioData.pose.orientation.quaternion.z,
+            vioData.pose.orientation.quaternion.w
+        );
+        
+        udpClient.BeginReceive(ReceiveCallback, null);
+    }
+}
+```
+
+#### Example: Three.js Client (JavaScript)
+
+```javascript
+// WebSocket or UDP-over-WebRTC for browser
+const socket = new WebSocket('ws://localhost:9999');
+
+socket.onmessage = (event) => {
+  const vioData = JSON.parse(event.data);
+  
+  // Update Three.js object
+  object.position.set(
+    vioData.pose.position.x,
+    vioData.pose.position.y,
+    vioData.pose.position.z
+  );
+  
+  object.quaternion.set(
+    vioData.pose.orientation.quaternion.x,
+    vioData.pose.orientation.quaternion.y,
+    vioData.pose.orientation.quaternion.z,
+    vioData.pose.orientation.quaternion.w
+  );
+};
+```
+
+## Custom Fiducial Markers
+
+### Beautifying Markers for User-Facing Applications
+
+Standard AprilTags are highly robust but can appear industrial. For consumer applications, you may want more aesthetically pleasing markers.
+
+**📖 See [CUSTOM_MARKERS.md](CUSTOM_MARKERS.md) for a comprehensive guide** covering:
+
+- Custom template markers (VuMark, JuMarker)
+- Deep learning-based markers (DeepTag)
+- Color-based markers
+- Invisible markers (IR/UV)
+- Hybrid approaches (ChArUco)
+
+#### Quick Recommendations
+
+**For immediate use:**
+- Continue with AprilTags (tag36h11 family recommended)
+- Enhance presentation with frames, branding, and design integration
+- Print on high-quality materials for professional appearance
+
+**For future enhancement:**
+- Research color-based markers for branded applications
+- Consider custom template markers for specific use cases
+- Investigate deep learning approaches for maximum flexibility
+
+#### Key Principle
+
+Any custom marker system should maintain the same API as AprilTagDetector:
+
+```python
+# Drop-in replacement for AprilTagDetector
+detector = CustomMarkerDetector(
+    marker_size=0.19,
+    camera_matrix=camera_matrix,
+    dist_coeffs=dist_coeffs
+)
+
+# Same detection API
+detections = detector.detect(image)
+# Returns same format: tag_id, translation, rotation_matrix, etc.
+```
+
+This ensures the VIO system works seamlessly with any marker type.
+
 ## Future Improvements
 
 1. **Multi-tag fusion:** Use multiple tags simultaneously for better accuracy
@@ -364,6 +573,8 @@ gyro_data, accel_data = IMUProcessor.simulate_imu_data(
 3. **Map building:** Build persistent map of tag locations
 4. **Adaptive tuning:** Automatically tune EKF parameters
 5. **Mobile deployment:** Port to iOS/Android for real-time performance
+6. **Custom markers:** Implement aesthetic marker alternatives (color, DeepTag)
+7. **3D visualization:** Native AR rendering within Python application
 
 ## References
 
