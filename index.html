@@ -219,12 +219,55 @@
                 🏷️ Marker Type
             </label>
             <select id="input-marker-type" onchange="App.onMarkerTypeChange()" style="font-size: 0.95rem;">
-                <option value="aruco">ArUco (DICT_4X4_50)</option>
-                <option value="apriltag">✨ AprilTag (Default: tag36h11)</option>
+                <option value="aruco">ArUco</option>
+                <option value="apriltag">✨ AprilTag</option>
             </select>
-            <p style="font-size: 0.75rem; color: #666; margin: -10px 0 10px 0;">
-                💡 AprilTag uses tag36h11 family by default. Generate markers using the in-app generator.
-            </p>
+
+            <!-- ArUco Dictionary Selection (shown for ArUco) -->
+            <div id="aruco-dict-container">
+                <label style="display: flex; align-items: center; gap: 5px;">
+                    📚 ArUco Dictionary
+                </label>
+                <select id="input-aruco-dict" style="font-size: 0.9rem;">
+                    <option value="DICT_4X4_50">DICT_4X4_50 (Recommended) ⭐</option>
+                    <option value="DICT_4X4_100">DICT_4X4_100</option>
+                    <option value="DICT_4X4_250">DICT_4X4_250</option>
+                    <option value="DICT_4X4_1000">DICT_4X4_1000</option>
+                    <option value="DICT_5X5_50">DICT_5X5_50</option>
+                    <option value="DICT_5X5_100">DICT_5X5_100</option>
+                    <option value="DICT_5X5_250">DICT_5X5_250</option>
+                    <option value="DICT_5X5_1000">DICT_5X5_1000</option>
+                    <option value="DICT_6X6_50">DICT_6X6_50</option>
+                    <option value="DICT_6X6_100">DICT_6X6_100</option>
+                    <option value="DICT_6X6_250">DICT_6X6_250</option>
+                    <option value="DICT_6X6_1000">DICT_6X6_1000</option>
+                    <option value="DICT_7X7_50">DICT_7X7_50</option>
+                    <option value="DICT_7X7_100">DICT_7X7_100</option>
+                    <option value="DICT_7X7_250">DICT_7X7_250</option>
+                    <option value="DICT_7X7_1000">DICT_7X7_1000</option>
+                </select>
+                <p style="font-size: 0.7rem; color: #666; margin: -10px 0 10px 0;">
+                    💡 DICT_4X4_50 provides best balance of speed and reliability
+                </p>
+            </div>
+
+            <!-- AprilTag Family Selection (shown for AprilTag) -->
+            <div id="apriltag-family-container" class="hidden">
+                <label style="display: flex; align-items: center; gap: 5px;">
+                    👪 AprilTag Family
+                </label>
+                <select id="input-apriltag-family" style="font-size: 0.9rem;">
+                    <option value="tag36h11">tag36h11 (Recommended) ⭐</option>
+                    <option value="tag36h10">tag36h10</option>
+                    <option value="tag36h9">tag36h9</option>
+                    <option value="tag25h9">tag25h9</option>
+                    <option value="tag16h5">tag16h5</option>
+                    <option value="tagStandard41h12">tagStandard41h12</option>
+                </select>
+                <p style="font-size: 0.7rem; color: #666; margin: -10px 0 10px 0;">
+                    💡 tag36h11 provides best detection accuracy. Generate markers using in-app generator.
+                </p>
+            </div>
 
             <!-- Marker Size -->
             <div id="single-marker-size-container">
@@ -2185,6 +2228,19 @@ const App = {
     onMarkerTypeChange: function() {
         const markerTypeSelect = document.getElementById('input-marker-type');
         this.markerType = markerTypeSelect.value;
+        
+        // Show/hide dictionary/family selectors based on marker type
+        const arucoDictContainer = document.getElementById('aruco-dict-container');
+        const apriltagFamilyContainer = document.getElementById('apriltag-family-container');
+        
+        if (this.markerType === 'aruco') {
+            arucoDictContainer.classList.remove('hidden');
+            apriltagFamilyContainer.classList.add('hidden');
+        } else if (this.markerType === 'apriltag') {
+            arucoDictContainer.classList.add('hidden');
+            apriltagFamilyContainer.classList.remove('hidden');
+        }
+        
         console.log(`Marker type changed to: ${this.markerType}`);
     },
 
