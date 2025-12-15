@@ -174,15 +174,18 @@ def test_aruco_detection():
             data = response.json()
             print(f"Status: {data['status']}")
             print(f"Marker Type: {data['marker_type']}")
-            print(f"Detected Count: {data['detected_count']}")
-            print(f"All Markers Found: {data['all_markers_found']}")
+            # Use new response format
+            marker_count = data.get('marker_count', data.get('detected_count', 0))
+            print(f"Detected Count: {marker_count}")
             
-            if data['detected_count'] > 0:
-                for i, detection in enumerate(data['detections']):
+            if marker_count > 0:
+                # Use 'markers' field if available, fall back to 'detections'
+                markers = data.get('markers', data.get('detections', []))
+                for i, detection in enumerate(markers):
                     print(f"\nMarker {i}:")
                     print(f"  ID: {detection['id']}")
                     print(f"  Position: {detection['position']}")
-                    print(f"  Confidence: {detection['confidence']}")
+                    print(f"  Confidence: {detection.get('confidence', 'N/A')}")
                 
                 print("✓ ArUco detection test passed")
                 return True
@@ -236,15 +239,15 @@ def test_multi_marker_detection():
         if response.status_code == 200:
             data = response.json()
             print(f"Status: {data['status']}")
-            print(f"Detected Count: {data['detected_count']}")
-            print(f"Expected Count: {data['expected_count']}")
-            print(f"All Markers Found: {data['all_markers_found']}")
+            # Use new response format
+            marker_count = data.get('marker_count', data.get('detected_count', 0))
+            print(f"Detected Count: {marker_count}")
             
-            if data['detected_count'] == 4:
+            if marker_count == 4:
                 print("✓ Multi-marker detection test passed")
                 return True
             else:
-                print(f"✗ Expected 4 markers, found {data['detected_count']}")
+                print(f"✗ Expected 4 markers, found {marker_count}")
                 return False
         else:
             print("✗ Multi-marker detection test failed")
@@ -324,6 +327,256 @@ def test_error_handling():
     return True
 
 
+def test_status_endpoint():
+    """Test status endpoint."""
+    print("\n=== Testing Status Endpoint ===")
+    try:
+        response = requests.get(f"{API_URL}/api/v1/status")
+        print(f"Status Code: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Active Sessions: {data.get('active_sessions', 0)}")
+            print(f"Stored Calibrations: {data.get('stored_calibrations', 0)}")
+            print("✓ Status endpoint test passed")
+            return True
+        else:
+            print("✗ Status endpoint test failed")
+            return False
+    except Exception as e:
+        print(f"✗ Error: {e}")
+        return False
+
+
+def test_session_management():
+    """Test session-based configuration."""
+    print("\n=== Testing Session Management ===")
+    try:
+        # Configure camera with session
+        response = requests.post(f"{API_URL}/api/v1/config", json={
+            "image_width": 1280,
+            "image_height": 720,
+            "fov_degrees": 60.0,
+            "save_calibration": True,
+            "device_name": "test_camera"
+        })
+        
+        print(f"Status Code: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            session_id = data.get('session_id')
+            calibration_id = data.get('calibration_id')
+            print(f"Session ID: {session_id}")
+            print(f"Calibration ID: {calibration_id}")
+            
+            if session_id and calibration_id:
+                print("✓ Session management test passed")
+                return True, session_id, calibration_id
+            else:
+                print("✗ Session or calibration ID not returned")
+                return False, None, None
+        else:
+            print("✗ Session management test failed")
+            return False, None, None
+    except Exception as e:
+        print(f"✗ Error: {e}")
+        return False, None, None
+
+
+def test_multipart_upload():
+    """Test multipart/form-data upload."""
+    print("\n=== Testing Multipart Upload ===")
+    try:
+        # Create test image
+        test_image = create_test_image('aruco', marker_id=0)
+        
+        # Save to temporary file
+        temp_path = '/tmp/test_marker_multipart.jpg'
+        cv2.imwrite(temp_path, test_image)
+        
+        # Upload using multipart/form-data
+        with open(temp_path, 'rb') as f:
+            files = {'image': ('test.jpg', f, 'image/jpeg')}
+            data = {
+                'marker_type': 'aruco',
+                'marker_size': '0.19',
+                'aruco_dict': 'DICT_4X4_50'
+            }
+            response = requests.post(
+                f"{API_URL}/api/v1/detect",
+                files=files,
+                data=data
+            )
+        
+        print(f"Status Code: {response.status_code}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"Status: {result.get('status')}")
+            print(f"Markers Found: {result.get('marker_count', 0)}")
+            print(f"Timings: {result.get('timings_ms', {})}")
+            
+            # Check for new response fields
+            has_markers = 'markers' in result
+            has_timings = 'timings_ms' in result
+            has_camera = 'camera' in result
+            has_warnings = 'warnings' in result
+            
+            if has_markers and has_timings and has_camera and has_warnings:
+                print("✓ Multipart upload test passed")
+                return True
+            else:
+                print("✗ Response missing required fields")
+                return False
+        else:
+            print("✗ Multipart upload test failed")
+            print(f"Response: {response.text}")
+            return False
+    except Exception as e:
+        print(f"✗ Error: {e}")
+        return False
+
+
+def test_transform_matrices():
+    """Test that transform matrices are returned."""
+    print("\n=== Testing Transform Matrices ===")
+    try:
+        # Create test image
+        test_image = create_test_image('aruco', marker_id=0)
+        image_b64 = encode_image(test_image)
+        
+        # Detect markers
+        response = requests.post(f"{API_URL}/api/v1/detect", json={
+            "image": image_b64,
+            "marker_type": "aruco",
+            "marker_size": 0.19,
+            "aruco_dict": "DICT_4X4_50"
+        })
+        
+        print(f"Status Code: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            markers = data.get('markers', [])
+            
+            if len(markers) > 0:
+                marker = markers[0]
+                has_rvec = 'rvec' in marker
+                has_tvec = 'tvec' in marker
+                has_transform = 'transform_matrix' in marker
+                
+                print(f"Has rvec: {has_rvec}")
+                print(f"Has tvec: {has_tvec}")
+                print(f"Has transform_matrix: {has_transform}")
+                
+                if has_rvec and has_tvec and has_transform:
+                    # Verify transform matrix is 4x4
+                    transform = marker['transform_matrix']
+                    if len(transform) == 4 and len(transform[0]) == 4:
+                        print("✓ Transform matrices test passed")
+                        return True
+                    else:
+                        print("✗ Transform matrix is not 4x4")
+                        return False
+                else:
+                    print("✗ Missing pose formats")
+                    return False
+            else:
+                print("✗ No markers detected")
+                return False
+        else:
+            print("✗ Detection failed")
+            return False
+    except Exception as e:
+        print(f"✗ Error: {e}")
+        return False
+
+
+def test_calibration_persistence():
+    """Test calibration persistence."""
+    print("\n=== Testing Calibration Persistence ===")
+    try:
+        # Create calibration
+        response = requests.post(f"{API_URL}/api/v1/config", json={
+            "image_width": 1920,
+            "image_height": 1080,
+            "fov_degrees": 70.0,
+            "save_calibration": True,
+            "device_name": "test_hd_camera"
+        })
+        
+        if response.status_code != 200:
+            print("✗ Failed to create calibration")
+            return False
+        
+        calibration_id = response.json().get('calibration_id')
+        print(f"Created Calibration ID: {calibration_id}")
+        
+        # List calibrations
+        response = requests.get(f"{API_URL}/api/v1/calibrations")
+        if response.status_code != 200:
+            print("✗ Failed to list calibrations")
+            return False
+        
+        calibrations = response.json().get('calibrations', [])
+        print(f"Total Calibrations: {len(calibrations)}")
+        
+        # Get specific calibration
+        response = requests.get(f"{API_URL}/api/v1/calibrations/{calibration_id}")
+        if response.status_code != 200:
+            print("✗ Failed to get calibration")
+            return False
+        
+        calib_data = response.json()
+        if calib_data.get('calibration_id') == calibration_id:
+            print("✓ Calibration persistence test passed")
+            return True
+        else:
+            print("✗ Calibration ID mismatch")
+            return False
+    except Exception as e:
+        print(f"✗ Error: {e}")
+        return False
+
+
+def test_openapi_spec():
+    """Test OpenAPI specification endpoint."""
+    print("\n=== Testing OpenAPI Specification ===")
+    try:
+        response = requests.get(f"{API_URL}/api/v1/openapi.json")
+        print(f"Status Code: {response.status_code}")
+        
+        if response.status_code == 200:
+            spec = response.json()
+            has_openapi = 'openapi' in spec
+            has_paths = 'paths' in spec
+            has_info = 'info' in spec
+            
+            print(f"Has OpenAPI version: {has_openapi}")
+            print(f"Has paths: {has_paths}")
+            print(f"Has info: {has_info}")
+            
+            if has_openapi and has_paths and has_info:
+                print(f"API Title: {spec['info'].get('title')}")
+                print(f"API Version: {spec['info'].get('version')}")
+                print(f"Number of paths: {len(spec.get('paths', {}))}")
+                print("✓ OpenAPI specification test passed")
+                return True
+            else:
+                print("✗ OpenAPI spec incomplete")
+                return False
+        elif response.status_code == 501:
+            print("⚠ OpenAPI not available (optional dependency)")
+            return True  # Not a failure if not installed
+        else:
+            print("✗ OpenAPI specification test failed")
+            return False
+    except Exception as e:
+        print(f"✗ Error: {e}")
+        return False
+
+
 def run_all_tests():
     """Run all tests."""
     print("=" * 60)
@@ -335,6 +588,7 @@ def run_all_tests():
     
     time.sleep(1)
     
+    # Run original tests
     results = {
         'health': test_health(),
         'supported_markers': test_supported_markers(),
@@ -345,13 +599,24 @@ def run_all_tests():
         'error_handling': test_error_handling()
     }
     
+    # Run new tests
+    results['status_endpoint'] = test_status_endpoint()
+    
+    session_result, session_id, calibration_id = test_session_management()
+    results['session_management'] = session_result
+    
+    results['multipart_upload'] = test_multipart_upload()
+    results['transform_matrices'] = test_transform_matrices()
+    results['calibration_persistence'] = test_calibration_persistence()
+    results['openapi_spec'] = test_openapi_spec()
+    
     print("\n" + "=" * 60)
     print("Test Results Summary")
     print("=" * 60)
     
     for test_name, passed in results.items():
         status = "✓ PASS" if passed else "✗ FAIL"
-        print(f"{test_name:20s} : {status}")
+        print(f"{test_name:25s} : {status}")
     
     total = len(results)
     passed = sum(results.values())
