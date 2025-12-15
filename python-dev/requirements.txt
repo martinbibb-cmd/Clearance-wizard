@@ -16,3 +16,4 @@ matplotlib>=3.3.0
 # AR Engine API Backend
 flask>=2.0.0
 flask-cors>=3.0.0
+flask-swagger-ui>=4.11.1
