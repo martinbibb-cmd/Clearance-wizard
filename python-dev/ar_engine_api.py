@@ -421,11 +421,14 @@ class AREngine:
         detections = []
         if ids is not None:
             # Estimate pose for each marker (using solvePnP for OpenCV 4.7+)
+            # Object points in marker coordinate system (Z=0 plane)
+            # OpenCV uses: X right, Y down, Z forward
+            # Corner order from detectMarkers: [Top-Left, Top-Right, Bottom-Right, Bottom-Left]
             object_points = np.array([
-                [-marker_size/2, marker_size/2, 0],
-                [marker_size/2, marker_size/2, 0],
-                [marker_size/2, -marker_size/2, 0],
-                [-marker_size/2, -marker_size/2, 0]
+                [-marker_size/2, -marker_size/2, 0],  # Top-left: X negative (left), Y negative (top)
+                [marker_size/2, -marker_size/2, 0],   # Top-right: X positive (right), Y negative (top)
+                [marker_size/2, marker_size/2, 0],    # Bottom-right: X positive (right), Y positive (bottom)
+                [-marker_size/2, marker_size/2, 0]    # Bottom-left: X negative (left), Y positive (bottom)
             ], dtype=np.float32)
             
             rvecs = []

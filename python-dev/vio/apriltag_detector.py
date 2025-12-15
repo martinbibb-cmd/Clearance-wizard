@@ -78,13 +78,15 @@ class AprilTagDetector:
         self.detector = apriltag.Detector(options)
         
         # Define 3D coordinates of tag corners in tag's coordinate system
-        # Tag is centered at origin, lying in XY plane
+        # Tag is centered at origin, lying in XY plane (Z=0)
+        # OpenCV coordinate system: X right, Y down, Z forward
+        # Corner order from apriltag library: [Top-Left, Top-Right, Bottom-Right, Bottom-Left]
         half_size = tag_size / 2.0
         self.object_points = np.array([
-            [-half_size, -half_size, 0],  # Bottom-left
-            [ half_size, -half_size, 0],  # Bottom-right
-            [ half_size,  half_size, 0],  # Top-right
-            [-half_size,  half_size, 0],  # Top-left
+            [-half_size, -half_size, 0],  # Top-left (X negative=left, Y negative=top)
+            [ half_size, -half_size, 0],  # Top-right (X positive=right, Y negative=top)
+            [ half_size,  half_size, 0],  # Bottom-right (X positive=right, Y positive=bottom)
+            [-half_size,  half_size, 0],  # Bottom-left (X negative=left, Y positive=bottom)
         ], dtype=np.float32)
     
     def detect(self, image: np.ndarray) -> List[Dict[str, Any]]:

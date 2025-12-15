@@ -931,24 +931,25 @@ class VisionSystem {
         try {
             // Define 3D object points for the marker (in marker's coordinate system)
             // Marker is centered at origin, lying in XY plane (Z=0)
-            // Corner order matches detection: [0]=bottom-left, [1]=bottom-right, [2]=top-right, [3]=top-left
+            // OpenCV coordinate system: X right, Y down, Z forward
+            // Corner order from OpenCV detectMarkers: [Top-Left, Top-Right, Bottom-Right, Bottom-Left]
             // This order is consistent with both ArUco and AprilTag detection outputs
             const halfSize = markerSize / 2.0;
             const objectPoints = cv.matFromArray(4, 1, cv.CV_32FC3, [
-                -halfSize, -halfSize, 0,  // Corner 0: Bottom-left
-                 halfSize, -halfSize, 0,  // Corner 1: Bottom-right
-                 halfSize,  halfSize, 0,  // Corner 2: Top-right
-                -halfSize,  halfSize, 0   // Corner 3: Top-left
+                -halfSize, -halfSize, 0,  // Corner 0: Top-left (X negative=left, Y negative=top)
+                 halfSize, -halfSize, 0,  // Corner 1: Top-right (X positive=right, Y negative=top)
+                 halfSize,  halfSize, 0,  // Corner 2: Bottom-right (X positive=right, Y positive=bottom)
+                -halfSize,  halfSize, 0   // Corner 3: Bottom-left (X negative=left, Y positive=bottom)
             ]);
             
             // Convert image points to OpenCV Mat
             // Corners are in screen space, need to be in original video resolution
             // Order must match objectPoints for correct correspondence
             const imagePoints = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                corners[0].x, corners[0].y,  // Bottom-left in image
-                corners[1].x, corners[1].y,  // Bottom-right in image
-                corners[2].x, corners[2].y,  // Top-right in image
-                corners[3].x, corners[3].y   // Top-left in image
+                corners[0].x, corners[0].y,  // Top-left in image
+                corners[1].x, corners[1].y,  // Top-right in image
+                corners[2].x, corners[2].y,  // Bottom-right in image
+                corners[3].x, corners[3].y   // Bottom-left in image
             ]);
             
             // Solve PnP to get rotation and translation
