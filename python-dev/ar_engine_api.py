@@ -227,29 +227,43 @@ class AREngine:
         else:
             gray = image
         
-        # Detect markers
-        corners, ids, rejected = cv2.aruco.detectMarkers(
-            gray,
-            self.aruco_dict,
-            parameters=self.aruco_params
-        )
+        # Detect markers (using OpenCV 4.7+ API)
+        detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
+        corners, ids, rejected = detector.detectMarkers(gray)
         
         detections = []
         if ids is not None:
-            # Estimate pose for each marker
-            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
-                corners,
-                marker_size,
-                self.camera_matrix,
-                self.dist_coeffs
-            )
+            # Estimate pose for each marker (using solvePnP for OpenCV 4.7+)
+            object_points = np.array([
+                [-marker_size/2, marker_size/2, 0],
+                [marker_size/2, marker_size/2, 0],
+                [marker_size/2, -marker_size/2, 0],
+                [-marker_size/2, -marker_size/2, 0]
+            ], dtype=np.float32)
+            
+            rvecs = []
+            tvecs = []
+            for corner in corners:
+                success, rvec, tvec = cv2.solvePnP(
+                    object_points,
+                    corner[0],
+                    self.camera_matrix,
+                    self.dist_coeffs,
+                    flags=cv2.SOLVEPNP_IPPE_SQUARE
+                )
+                if success:
+                    rvecs.append(rvec)
+                    tvecs.append(tvec)
             
             for i, marker_id in enumerate(ids.flatten()):
+                if i >= len(rvecs):
+                    continue
+                
                 # Convert rotation vector to matrix
                 rmat, _ = cv2.Rodrigues(rvecs[i])
                 
                 # Extract position and orientation
-                position = tvecs[i][0]
+                position = tvecs[i].flatten()
                 
                 detection = {
                     'id': int(marker_id),
@@ -287,7 +301,7 @@ def health_check():
     """
     return jsonify({
         'status': 'ok',
-        'timestamp': datetime.utcnow().isoformat(),
+        'timestamp': datetime.now().isoformat(),
         'features': {
             'apriltag': APRILTAG_AVAILABLE,
             'aruco': True
@@ -430,7 +444,7 @@ def detect_markers():
                 len(detections) >= marker_count if marker_count else True
             ),
             'detections': detections,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now().isoformat()
         })
     
     except Exception as e:
