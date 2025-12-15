@@ -8,16 +8,40 @@ OPENAPI_SPEC = {
     "openapi": "3.0.0",
     "info": {
         "title": "AR Engine API",
-        "description": "REST API for AR marker detection and pose estimation. Supports AprilTag and ArUco markers with configurable parameters, session management, and calibration persistence.",
+        "description": """REST API for AR marker detection and pose estimation. Supports AprilTag and ArUco markers with configurable parameters, session management, and calibration persistence.
+
+## Production Deployment Notes
+
+### Rate Limiting
+The API enforces rate limiting (100 requests/minute per IP) to prevent abuse. When deployed behind a proxy or load balancer (e.g., Nginx, Cloudflare), ensure the `X-Forwarded-For` header is properly set to pass the client's real IP address. Without this header, all requests will appear to come from the proxy's IP and share the same rate limit.
+
+Example Nginx configuration:
+```nginx
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Real-IP $remote_addr;
+```
+
+### Security Guards
+- Maximum payload size: 10 MB
+- Maximum image dimensions: 4096x4096 pixels
+- Rate limiting: 100 requests/minute per client IP
+""",
         "version": "2.0.0",
         "contact": {
             "name": "AR Engine Team"
+        },
+        "license": {
+            "name": "MIT"
         }
     },
     "servers": [
         {
             "url": "http://127.0.0.1:5000",
             "description": "Local development server"
+        },
+        {
+            "url": "https://api.example.com",
+            "description": "Production server"
         }
     ],
     "tags": [
@@ -38,6 +62,108 @@ OPENAPI_SPEC = {
             "description": "Marker information and generation"
         }
     ],
+    "components": {
+        "schemas": {
+            "Error": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "description": "Error message"
+                    },
+                    "warnings": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Additional warning messages"
+                    }
+                },
+                "required": ["error"]
+            },
+            "RateLimitError": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "example": "Rate limit exceeded"
+                    },
+                    "retry_after": {
+                        "type": "integer",
+                        "description": "Seconds to wait before retrying",
+                        "example": 60
+                    }
+                },
+                "required": ["error", "retry_after"]
+            }
+        },
+        "responses": {
+            "BadRequest": {
+                "description": "Invalid request parameters",
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/Error"},
+                        "examples": {
+                            "missing_field": {
+                                "value": {
+                                    "error": "image field required"
+                                }
+                            },
+                            "dimension_exceeded": {
+                                "value": {
+                                    "error": "Image dimensions exceed security limits",
+                                    "warnings": ["Image dimensions 5000x5000 exceed maximum 4096x4096"]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "PayloadTooLarge": {
+                "description": "Payload exceeds maximum size limit",
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/Error"},
+                        "example": {
+                            "error": "Payload too large. Maximum size: 10485760 bytes"
+                        }
+                    }
+                }
+            },
+            "RateLimitExceeded": {
+                "description": "Rate limit exceeded",
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/RateLimitError"},
+                        "example": {
+                            "error": "Rate limit exceeded",
+                            "retry_after": 60
+                        }
+                    }
+                }
+            },
+            "NotFound": {
+                "description": "Resource not found",
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/Error"},
+                        "example": {
+                            "error": "Calibration not found"
+                        }
+                    }
+                }
+            },
+            "InternalServerError": {
+                "description": "Internal server error",
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/Error"},
+                        "example": {
+                            "error": "Internal server error occurred"
+                        }
+                    }
+                }
+            }
+        }
+    },
     "paths": {
         "/health": {
             "get": {
@@ -188,9 +314,9 @@ OPENAPI_SPEC = {
                             }
                         }
                     },
-                    "400": {"description": "Invalid request"},
-                    "429": {"description": "Rate limit exceeded"},
-                    "500": {"description": "Internal server error"}
+                    "400": {"$ref": "#/components/responses/BadRequest"},
+                    "429": {"$ref": "#/components/responses/RateLimitExceeded"},
+                    "500": {"$ref": "#/components/responses/InternalServerError"}
                 }
             }
         },
@@ -364,10 +490,10 @@ OPENAPI_SPEC = {
                             }
                         }
                     },
-                    "400": {"description": "Invalid request"},
-                    "413": {"description": "Payload too large"},
-                    "429": {"description": "Rate limit exceeded"},
-                    "500": {"description": "Internal server error"}
+                    "400": {"$ref": "#/components/responses/BadRequest"},
+                    "413": {"$ref": "#/components/responses/PayloadTooLarge"},
+                    "429": {"$ref": "#/components/responses/RateLimitExceeded"},
+                    "500": {"$ref": "#/components/responses/InternalServerError"}
                 }
             }
         },
@@ -419,7 +545,7 @@ OPENAPI_SPEC = {
                             }
                         }
                     },
-                    "404": {"description": "Calibration not found"}
+                    "404": {"$ref": "#/components/responses/NotFound"}
                 }
             }
         },
@@ -494,8 +620,18 @@ OPENAPI_SPEC = {
                             }
                         }
                     },
-                    "400": {"description": "Invalid request"},
-                    "501": {"description": "Not implemented"}
+                    "400": {"$ref": "#/components/responses/BadRequest"},
+                    "501": {
+                        "description": "Not implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/Error"},
+                                "example": {
+                                    "error": "AprilTag generation not yet implemented. Use in-app generator."
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

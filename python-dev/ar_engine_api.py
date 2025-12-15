@@ -512,29 +512,63 @@ def check_rate_limit(client_id: str) -> Tuple[bool, int]:
     return allowed, remaining
 
 
+def get_client_ip() -> str:
+    """
+    Get client IP address, checking X-Forwarded-For header for proxy support.
+    
+    Returns
+    -------
+    str
+        Client IP address.
+    """
+    # Check X-Forwarded-For header (set by proxies/load balancers)
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        # X-Forwarded-For can contain multiple IPs, use the first one (client IP)
+        return forwarded_for.split(',')[0].strip()
+    
+    # Fallback to remote_addr
+    return request.remote_addr
+
+
 def rate_limit_guard(f):
     """Decorator to enforce rate limiting on endpoints."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        client_id = request.remote_addr
+        client_id = get_client_ip()
         allowed, remaining = check_rate_limit(client_id)
         
         if not allowed:
-            return jsonify({
+            response = jsonify({
                 'error': 'Rate limit exceeded',
                 'retry_after': CONFIG['rate_limit_window']
-            }), 429
+            })
+            response.headers['X-RateLimit-Limit'] = str(CONFIG['rate_limit_requests'])
+            response.headers['X-RateLimit-Remaining'] = '0'
+            response.headers['Retry-After'] = str(CONFIG['rate_limit_window'])
+            return response, 429
         
-        response = f(*args, **kwargs)
+        result = f(*args, **kwargs)
         
-        # Add rate limit headers if response is a tuple (response, status_code)
-        if isinstance(response, tuple):
-            resp_obj, status_code = response[0], response[1]
+        # Add rate limit headers to response
+        if isinstance(result, tuple):
+            resp_obj, status_code = result[0], result[1]
             if isinstance(resp_obj, Response):
+                resp_obj.headers['X-RateLimit-Limit'] = str(CONFIG['rate_limit_requests'])
                 resp_obj.headers['X-RateLimit-Remaining'] = str(remaining)
                 return resp_obj, status_code
+        elif isinstance(result, Response):
+            result.headers['X-RateLimit-Limit'] = str(CONFIG['rate_limit_requests'])
+            result.headers['X-RateLimit-Remaining'] = str(remaining)
+            return result
         
-        return response
+        # For jsonify responses, wrap to add headers
+        response = result if isinstance(result, Response) else result
+        if hasattr(response, 'headers'):
+            response.headers['X-RateLimit-Limit'] = str(CONFIG['rate_limit_requests'])
+            response.headers['X-RateLimit-Remaining'] = str(remaining)
+        
+        return result
     return decorated_function
 
 
