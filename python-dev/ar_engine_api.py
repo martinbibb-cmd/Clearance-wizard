@@ -18,6 +18,11 @@ import logging
 from typing import Dict, List, Any, Optional, Tuple
 import io
 from datetime import datetime
+import uuid
+import time
+from functools import wraps
+from collections import defaultdict
+from werkzeug.datastructures import FileStorage
 
 # Import AR detection modules
 try:
@@ -27,6 +32,15 @@ except ImportError:
     APRILTAG_AVAILABLE = False
     print("Warning: AprilTag detector not available")
 
+# Import OpenAPI spec
+try:
+    from openapi_spec import OPENAPI_SPEC
+    from flask_swagger_ui import get_swaggerui_blueprint
+    SWAGGER_AVAILABLE = True
+except ImportError:
+    SWAGGER_AVAILABLE = False
+    print("Warning: Swagger UI not available")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,6 +49,19 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)  # Enable CORS for cross-origin requests
 
+# Setup Swagger UI if available
+if SWAGGER_AVAILABLE:
+    SWAGGER_URL = '/api/docs'
+    API_URL = '/api/v1/openapi.json'
+    swaggerui_blueprint = get_swaggerui_blueprint(
+        SWAGGER_URL,
+        API_URL,
+        config={
+            'app_name': "AR Engine API"
+        }
+    )
+    app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
+
 # Global configuration
 CONFIG = {
     'default_marker_type': 'apriltag',
@@ -42,7 +69,21 @@ CONFIG = {
     'default_aruco_dict': 'DICT_4X4_50',
     'default_marker_size': 0.19,  # 190mm in meters
     'default_camera_fov': 60.0,   # degrees
+    'max_payload_size': 10 * 1024 * 1024,  # 10 MB
+    'max_image_width': 4096,
+    'max_image_height': 4096,
+    'rate_limit_requests': 100,  # requests per minute
+    'rate_limit_window': 60,  # seconds
 }
+
+# Session storage for request-scoped configurations
+SESSIONS = {}
+
+# Calibration storage
+CALIBRATIONS = {}
+
+# Rate limiting storage
+RATE_LIMITS = defaultdict(list)
 
 # ArUco dictionary mapping
 ARUCO_DICT_MAP = {
@@ -63,6 +104,152 @@ ARUCO_DICT_MAP = {
     'DICT_7X7_250': cv2.aruco.DICT_7X7_250,
     'DICT_7X7_1000': cv2.aruco.DICT_7X7_1000,
 }
+
+
+class SessionConfig:
+    """
+    Request-scoped configuration for AR detection.
+    
+    Attributes
+    ----------
+    session_id : str
+        Unique session identifier.
+    camera_matrix : np.ndarray
+        Camera intrinsic matrix.
+    dist_coeffs : np.ndarray
+        Camera distortion coefficients.
+    calibration_id : str or None
+        Associated calibration identifier.
+    created_at : datetime
+        Session creation timestamp.
+    last_accessed : datetime
+        Last access timestamp.
+    """
+    
+    def __init__(self, session_id: str = None):
+        """
+        Initialize a new session configuration.
+        
+        Parameters
+        ----------
+        session_id : str, optional
+            Session identifier. Auto-generated if not provided.
+        """
+        self.session_id = session_id or str(uuid.uuid4())
+        self.camera_matrix = None
+        self.dist_coeffs = None
+        self.calibration_id = None
+        self.created_at = datetime.now()
+        self.last_accessed = datetime.now()
+    
+    def update_access_time(self):
+        """Update last accessed timestamp."""
+        self.last_accessed = datetime.now()
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert session to dictionary.
+        
+        Returns
+        -------
+        dict
+            Session configuration as dictionary.
+        """
+        return {
+            'session_id': self.session_id,
+            'calibration_id': self.calibration_id,
+            'has_camera_matrix': self.camera_matrix is not None,
+            'created_at': self.created_at.isoformat(),
+            'last_accessed': self.last_accessed.isoformat()
+        }
+
+
+class CalibrationData:
+    """
+    Camera calibration data with versioning and persistence.
+    
+    Attributes
+    ----------
+    calibration_id : str
+        Unique calibration identifier.
+    camera_matrix : np.ndarray
+        Camera intrinsic matrix.
+    dist_coeffs : np.ndarray
+        Camera distortion coefficients.
+    image_width : int
+        Image width in pixels.
+    image_height : int
+        Image height in pixels.
+    fov_degrees : float
+        Field of view in degrees.
+    device_name : str
+        Associated device/camera name.
+    version : int
+        Calibration version number.
+    created_at : datetime
+        Creation timestamp.
+    """
+    
+    def __init__(
+        self,
+        camera_matrix: np.ndarray,
+        dist_coeffs: np.ndarray,
+        image_width: int,
+        image_height: int,
+        fov_degrees: float,
+        device_name: str = "unknown",
+        calibration_id: str = None
+    ):
+        """
+        Initialize calibration data.
+        
+        Parameters
+        ----------
+        camera_matrix : np.ndarray
+            Camera intrinsic matrix.
+        dist_coeffs : np.ndarray
+            Camera distortion coefficients.
+        image_width : int
+            Image width in pixels.
+        image_height : int
+            Image height in pixels.
+        fov_degrees : float
+            Field of view in degrees.
+        device_name : str, optional
+            Device/camera name.
+        calibration_id : str, optional
+            Calibration identifier. Auto-generated if not provided.
+        """
+        self.calibration_id = calibration_id or str(uuid.uuid4())
+        self.camera_matrix = camera_matrix
+        self.dist_coeffs = dist_coeffs
+        self.image_width = image_width
+        self.image_height = image_height
+        self.fov_degrees = fov_degrees
+        self.device_name = device_name
+        self.version = 1
+        self.created_at = datetime.now()
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert calibration to dictionary.
+        
+        Returns
+        -------
+        dict
+            Calibration data as dictionary.
+        """
+        return {
+            'calibration_id': self.calibration_id,
+            'camera_matrix': self.camera_matrix.tolist(),
+            'dist_coeffs': self.dist_coeffs.tolist(),
+            'image_width': self.image_width,
+            'image_height': self.image_height,
+            'fov_degrees': self.fov_degrees,
+            'device_name': self.device_name,
+            'version': self.version,
+            'created_at': self.created_at.isoformat()
+        }
 
 
 class AREngine:
@@ -287,6 +474,222 @@ engine = AREngine()
 
 
 # ==========================================
+# SECURITY MIDDLEWARE & HELPERS
+# ==========================================
+
+def check_rate_limit(client_id: str) -> Tuple[bool, int]:
+    """
+    Check if client has exceeded rate limit.
+    
+    Parameters
+    ----------
+    client_id : str
+        Client identifier (IP address or session ID).
+    
+    Returns
+    -------
+    allowed : bool
+        Whether request is allowed.
+    remaining : int
+        Remaining requests in current window.
+    """
+    current_time = time.time()
+    window_start = current_time - CONFIG['rate_limit_window']
+    
+    # Clean old entries
+    RATE_LIMITS[client_id] = [
+        ts for ts in RATE_LIMITS[client_id] if ts > window_start
+    ]
+    
+    # Check limit
+    request_count = len(RATE_LIMITS[client_id])
+    allowed = request_count < CONFIG['rate_limit_requests']
+    
+    if allowed:
+        RATE_LIMITS[client_id].append(current_time)
+    
+    remaining = max(0, CONFIG['rate_limit_requests'] - request_count - 1)
+    return allowed, remaining
+
+
+def rate_limit_guard(f):
+    """Decorator to enforce rate limiting on endpoints."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        client_id = request.remote_addr
+        allowed, remaining = check_rate_limit(client_id)
+        
+        if not allowed:
+            return jsonify({
+                'error': 'Rate limit exceeded',
+                'retry_after': CONFIG['rate_limit_window']
+            }), 429
+        
+        response = f(*args, **kwargs)
+        
+        # Add rate limit headers if response is a tuple (response, status_code)
+        if isinstance(response, tuple):
+            resp_obj, status_code = response[0], response[1]
+            if isinstance(resp_obj, Response):
+                resp_obj.headers['X-RateLimit-Remaining'] = str(remaining)
+                return resp_obj, status_code
+        
+        return response
+    return decorated_function
+
+
+def validate_image_dimensions(image: np.ndarray, warnings: List[str]) -> bool:
+    """
+    Validate image dimensions against security limits.
+    
+    Parameters
+    ----------
+    image : np.ndarray
+        Input image.
+    warnings : list
+        List to append warnings to.
+    
+    Returns
+    -------
+    bool
+        Whether image dimensions are valid.
+    """
+    height, width = image.shape[:2]
+    
+    if width > CONFIG['max_image_width'] or height > CONFIG['max_image_height']:
+        warnings.append(
+            f"Image dimensions {width}x{height} exceed maximum "
+            f"{CONFIG['max_image_width']}x{CONFIG['max_image_height']}"
+        )
+        return False
+    
+    return True
+
+
+def get_or_create_session(session_id: Optional[str] = None) -> SessionConfig:
+    """
+    Get existing session or create new one.
+    
+    Parameters
+    ----------
+    session_id : str, optional
+        Session identifier.
+    
+    Returns
+    -------
+    SessionConfig
+        Session configuration object.
+    """
+    if session_id and session_id in SESSIONS:
+        session = SESSIONS[session_id]
+        session.update_access_time()
+        return session
+    
+    # Create new session
+    session = SessionConfig(session_id)
+    SESSIONS[session.session_id] = session
+    return session
+
+
+def create_transform_matrix(rvec: np.ndarray, tvec: np.ndarray) -> np.ndarray:
+    """
+    Create 4x4 transformation matrix from rotation and translation vectors.
+    
+    Parameters
+    ----------
+    rvec : np.ndarray
+        Rotation vector.
+    tvec : np.ndarray
+        Translation vector.
+    
+    Returns
+    -------
+    np.ndarray
+        4x4 transformation matrix.
+    """
+    rmat, _ = cv2.Rodrigues(rvec)
+    transform = np.eye(4)
+    transform[:3, :3] = rmat
+    transform[:3, 3] = tvec.flatten()
+    return transform
+
+
+def format_detection_response(
+    detections: List[Dict[str, Any]],
+    marker_type: str,
+    marker_size: float,
+    timings: Dict[str, float],
+    camera_info: Dict[str, Any],
+    warnings: List[str],
+    session_id: str = None,
+    calibration_id: str = None
+) -> Dict[str, Any]:
+    """
+    Format detection response with standardized schema.
+    
+    Parameters
+    ----------
+    detections : list of dict
+        Raw detection results.
+    marker_type : str
+        Type of marker detected.
+    marker_size : float
+        Physical marker size.
+    timings : dict
+        Timing information in milliseconds.
+    camera_info : dict
+        Camera configuration info.
+    warnings : list
+        Warning messages.
+    session_id : str, optional
+        Session identifier.
+    calibration_id : str, optional
+        Calibration identifier.
+    
+    Returns
+    -------
+    dict
+        Standardized response.
+    """
+    # Sort detections by ID for deterministic ordering
+    sorted_detections = sorted(detections, key=lambda x: x.get('id', 0))
+    
+    # Enhance detections with transform matrices
+    for detection in sorted_detections:
+        if 'rotation_matrix' in detection and 'position' in detection:
+            # Create rvec from rotation matrix
+            rmat = np.array(detection['rotation_matrix'])
+            rvec, _ = cv2.Rodrigues(rmat)
+            tvec = np.array([
+                detection['position']['x'],
+                detection['position']['y'],
+                detection['position']['z']
+            ])
+            
+            # Add rvec/tvec
+            detection['rvec'] = rvec.flatten().tolist()
+            detection['tvec'] = tvec.flatten().tolist()
+            
+            # Add 4x4 transform matrix
+            transform = create_transform_matrix(rvec, tvec)
+            detection['transform_matrix'] = transform.tolist()
+    
+    return {
+        'status': 'success',
+        'markers': sorted_detections,
+        'marker_count': len(sorted_detections),
+        'marker_type': marker_type,
+        'marker_size': marker_size,
+        'timings_ms': timings,
+        'camera': camera_info,
+        'warnings': warnings,
+        'session_id': session_id,
+        'calibration_id': calibration_id,
+        'timestamp': datetime.now().isoformat()
+    }
+
+
+# ==========================================
 # API ENDPOINTS
 # ==========================================
 
@@ -304,15 +707,109 @@ def health_check():
         'timestamp': datetime.now().isoformat(),
         'features': {
             'apriltag': APRILTAG_AVAILABLE,
-            'aruco': True
+            'aruco': True,
+            'multipart_upload': True,
+            'session_management': True,
+            'calibration_persistence': True
         }
     })
 
 
+@app.route('/api/v1/status', methods=['GET'])
+def get_status():
+    """
+    Get API status including session and calibration information.
+    
+    Query Parameters
+    ----------------
+    session_id : str, optional
+        Session identifier to get specific session status.
+    
+    Returns
+    -------
+    JSON response with API status, sessions, and calibrations.
+    """
+    session_id = request.args.get('session_id', None)
+    
+    response = {
+        'status': 'ok',
+        'timestamp': datetime.now().isoformat(),
+        'active_sessions': len(SESSIONS),
+        'stored_calibrations': len(CALIBRATIONS),
+        'features': {
+            'apriltag': APRILTAG_AVAILABLE,
+            'aruco': True,
+            'multipart_upload': True,
+            'session_management': True,
+            'calibration_persistence': True
+        }
+    }
+    
+    # Add session details if requested
+    if session_id and session_id in SESSIONS:
+        session = SESSIONS[session_id]
+        response['session'] = session.to_dict()
+    
+    return jsonify(response)
+
+
+@app.route('/api/v1/calibrations', methods=['GET'])
+def list_calibrations():
+    """
+    List all stored calibrations.
+    
+    Returns
+    -------
+    JSON response with list of calibrations.
+    """
+    calibrations = [calib.to_dict() for calib in CALIBRATIONS.values()]
+    return jsonify({
+        'calibrations': calibrations,
+        'count': len(calibrations)
+    })
+
+
+@app.route('/api/v1/calibrations/<calibration_id>', methods=['GET'])
+def get_calibration(calibration_id: str):
+    """
+    Get specific calibration by ID.
+    
+    Parameters
+    ----------
+    calibration_id : str
+        Calibration identifier.
+    
+    Returns
+    -------
+    JSON response with calibration data.
+    """
+    if calibration_id not in CALIBRATIONS:
+        return jsonify({'error': 'Calibration not found'}), 404
+    
+    calib = CALIBRATIONS[calibration_id]
+    return jsonify(calib.to_dict())
+
+
+@app.route('/api/v1/openapi.json', methods=['GET'])
+def get_openapi_spec():
+    """
+    Get OpenAPI specification.
+    
+    Returns
+    -------
+    JSON response with OpenAPI specification.
+    """
+    if not SWAGGER_AVAILABLE:
+        return jsonify({'error': 'OpenAPI documentation not available'}), 501
+    
+    return jsonify(OPENAPI_SPEC)
+
+
 @app.route('/api/v1/config', methods=['POST'])
+@rate_limit_guard
 def configure_camera():
     """
-    Configure camera calibration parameters.
+    Configure camera calibration parameters (request-scoped).
     
     Request Body
     ------------
@@ -320,12 +817,15 @@ def configure_camera():
         "image_width": int,
         "image_height": int,
         "fov_degrees": float (optional, default: 60.0),
-        "dist_coeffs": [float] (optional, default: [0, 0, 0, 0, 0])
+        "dist_coeffs": [float] (optional, default: [0, 0, 0, 0, 0]),
+        "session_id": str (optional),
+        "device_name": str (optional),
+        "save_calibration": bool (optional, default: false)
     }
     
     Returns
     -------
-    JSON response with camera matrix and distortion coefficients.
+    JSON response with camera matrix, distortion coefficients, session_id, and calibration_id.
     """
     try:
         data = request.get_json()
@@ -336,20 +836,48 @@ def configure_camera():
         width = data.get('image_width')
         height = data.get('image_height')
         fov = data.get('fov_degrees', CONFIG['default_camera_fov'])
-        dist_coeffs = data.get('dist_coeffs', None)
+        dist_coeffs_input = data.get('dist_coeffs', None)
+        session_id = data.get('session_id', None)
+        device_name = data.get('device_name', 'unknown')
+        save_calibration = data.get('save_calibration', False)
         
         if width is None or height is None:
             return jsonify({'error': 'image_width and image_height required'}), 400
         
+        # Get or create session
+        session = get_or_create_session(session_id)
+        
+        # Setup calibration
         camera_matrix, dist_coeffs = engine.setup_camera_calibration(
             image_width=int(width),
             image_height=int(height),
             fov_degrees=float(fov),
-            dist_coeffs=dist_coeffs
+            dist_coeffs=dist_coeffs_input
         )
+        
+        # Store in session
+        session.camera_matrix = camera_matrix
+        session.dist_coeffs = dist_coeffs
+        
+        # Create calibration data if requested
+        calibration_id = None
+        if save_calibration:
+            calibration = CalibrationData(
+                camera_matrix=camera_matrix,
+                dist_coeffs=dist_coeffs,
+                image_width=int(width),
+                image_height=int(height),
+                fov_degrees=float(fov),
+                device_name=device_name
+            )
+            CALIBRATIONS[calibration.calibration_id] = calibration
+            session.calibration_id = calibration.calibration_id
+            calibration_id = calibration.calibration_id
         
         return jsonify({
             'status': 'configured',
+            'session_id': session.session_id,
+            'calibration_id': calibration_id,
             'camera_matrix': camera_matrix.tolist(),
             'dist_coeffs': dist_coeffs.tolist()
         })
@@ -360,96 +888,199 @@ def configure_camera():
 
 
 @app.route('/api/v1/detect', methods=['POST'])
+@rate_limit_guard
 def detect_markers():
     """
     Detect AR markers in an image.
     
-    Request Body
-    ------------
+    Supports both multipart/form-data and JSON (base64) uploads.
+    
+    Request Body (multipart/form-data)
+    -----------------------------------
+    - image: file (image file)
+    - marker_type: str ("apriltag" or "aruco")
+    - marker_size: float (size in meters)
+    - marker_count: int (expected number of markers, optional)
+    - tag_family: str (for AprilTag, optional)
+    - aruco_dict: str (for ArUco, optional)
+    - session_id: str (optional)
+    - calibration_id: str (optional)
+    
+    Request Body (JSON)
+    -------------------
     {
         "image": str (base64-encoded image),
         "marker_type": str ("apriltag" or "aruco"),
         "marker_size": float (size in meters),
         "marker_count": int (expected number of markers, optional),
         "tag_family": str (for AprilTag, optional),
-        "aruco_dict": str (for ArUco, optional)
+        "aruco_dict": str (for ArUco, optional),
+        "session_id": str (optional),
+        "calibration_id": str (optional)
     }
     
     Returns
     -------
-    JSON response with detected markers and pose information.
+    JSON response with detected markers, timings, camera info, and warnings.
     """
+    start_time = time.time()
+    timings = {}
+    warnings = []
+    image = None
+    
     try:
-        data = request.get_json()
+        # Check payload size
+        if request.content_length and request.content_length > CONFIG['max_payload_size']:
+            return jsonify({
+                'error': f'Payload too large. Maximum size: {CONFIG["max_payload_size"]} bytes'
+            }), 413
         
-        if not data:
-            return jsonify({'error': 'No JSON data provided'}), 400
+        # Parse request based on content type
+        is_multipart = request.content_type and 'multipart/form-data' in request.content_type
         
-        # Decode image
-        image_b64 = data.get('image')
-        if not image_b64:
-            return jsonify({'error': 'image field required'}), 400
-        
-        # Decode base64 image
-        try:
-            image_bytes = base64.b64decode(image_b64)
+        if is_multipart:
+            # Handle multipart/form-data
+            decode_start = time.time()
+            
+            if 'image' not in request.files:
+                return jsonify({'error': 'image file required in multipart upload'}), 400
+            
+            file = request.files['image']
+            image_bytes = file.read()
             image_array = np.frombuffer(image_bytes, dtype=np.uint8)
             image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
             
             if image is None:
-                return jsonify({'error': 'Failed to decode image'}), 400
-        except Exception as e:
-            return jsonify({'error': f'Image decode error: {str(e)}'}), 400
+                return jsonify({'error': 'Failed to decode uploaded image'}), 400
+            
+            # Get parameters from form data
+            marker_type = request.form.get('marker_type', CONFIG['default_marker_type'])
+            marker_size = float(request.form.get('marker_size', CONFIG['default_marker_size']))
+            marker_count = request.form.get('marker_count', None)
+            if marker_count is not None:
+                marker_count = int(marker_count)
+            tag_family = request.form.get('tag_family', CONFIG['default_tag_family'])
+            aruco_dict = request.form.get('aruco_dict', CONFIG['default_aruco_dict'])
+            session_id = request.form.get('session_id', None)
+            calibration_id = request.form.get('calibration_id', None)
+            
+            timings['image_decode_ms'] = (time.time() - decode_start) * 1000
+        else:
+            # Handle JSON with base64
+            decode_start = time.time()
+            
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'No JSON data provided'}), 400
+            
+            image_b64 = data.get('image')
+            if not image_b64:
+                return jsonify({'error': 'image field required'}), 400
+            
+            try:
+                image_bytes = base64.b64decode(image_b64)
+                image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+                image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+                
+                if image is None:
+                    return jsonify({'error': 'Failed to decode image'}), 400
+            except Exception as e:
+                return jsonify({'error': f'Image decode error: {str(e)}'}), 400
+            
+            # Get parameters from JSON
+            marker_type = data.get('marker_type', CONFIG['default_marker_type'])
+            marker_size = float(data.get('marker_size', CONFIG['default_marker_size']))
+            marker_count = data.get('marker_count', None)
+            tag_family = data.get('tag_family', CONFIG['default_tag_family'])
+            aruco_dict = data.get('aruco_dict', CONFIG['default_aruco_dict'])
+            session_id = data.get('session_id', None)
+            calibration_id = data.get('calibration_id', None)
+            
+            timings['image_decode_ms'] = (time.time() - decode_start) * 1000
         
-        # Get detection parameters
-        marker_type = data.get('marker_type', CONFIG['default_marker_type'])
-        marker_size = float(data.get('marker_size', CONFIG['default_marker_size']))
-        marker_count = data.get('marker_count', None)
+        # Validate image dimensions
+        if not validate_image_dimensions(image, warnings):
+            return jsonify({
+                'error': 'Image dimensions exceed security limits',
+                'warnings': warnings
+            }), 400
         
-        # Setup camera calibration if not already done
-        if engine.camera_matrix is None:
+        # Get or create session
+        session = get_or_create_session(session_id)
+        
+        # Load calibration if specified
+        if calibration_id and calibration_id in CALIBRATIONS:
+            calib = CALIBRATIONS[calibration_id]
+            session.camera_matrix = calib.camera_matrix
+            session.dist_coeffs = calib.dist_coeffs
+            session.calibration_id = calibration_id
+        
+        # Setup camera calibration for this session
+        calibration_start = time.time()
+        if session.camera_matrix is None:
             height, width = image.shape[:2]
-            engine.setup_camera_calibration(
+            camera_matrix, dist_coeffs = engine.setup_camera_calibration(
                 image_width=width,
                 image_height=height,
                 fov_degrees=CONFIG['default_camera_fov']
             )
+            session.camera_matrix = camera_matrix
+            session.dist_coeffs = dist_coeffs
+            warnings.append("Camera calibration auto-configured from image dimensions")
+        else:
+            engine.camera_matrix = session.camera_matrix
+            engine.dist_coeffs = session.dist_coeffs
+        
+        timings['calibration_setup_ms'] = (time.time() - calibration_start) * 1000
         
         # Detect markers based on type
+        detection_start = time.time()
         if marker_type.lower() == 'apriltag':
-            tag_family = data.get('tag_family', CONFIG['default_tag_family'])
             detections = engine.detect_apriltag(image, marker_size, tag_family)
-        
         elif marker_type.lower() == 'aruco':
-            aruco_dict = data.get('aruco_dict', CONFIG['default_aruco_dict'])
             detections = engine.detect_aruco(image, marker_size, aruco_dict)
-        
         else:
             return jsonify({'error': f'Unknown marker type: {marker_type}'}), 400
         
-        # Filter by marker count if specified
-        if marker_count is not None:
-            if len(detections) < marker_count:
-                logger.warning(
-                    f"Expected {marker_count} markers, found {len(detections)}"
-                )
+        timings['detection_ms'] = (time.time() - detection_start) * 1000
         
-        return jsonify({
-            'status': 'success',
-            'marker_type': marker_type,
-            'marker_size': marker_size,
-            'detected_count': len(detections),
-            'expected_count': marker_count,
-            'all_markers_found': (
-                len(detections) >= marker_count if marker_count else True
-            ),
-            'detections': detections,
-            'timestamp': datetime.now().isoformat()
-        })
+        # Check marker count
+        if marker_count is not None and len(detections) < marker_count:
+            warnings.append(
+                f"Expected {marker_count} markers, found {len(detections)}"
+            )
+        
+        # Prepare camera info
+        camera_info = {
+            'width': image.shape[1],
+            'height': image.shape[0],
+            'calibrated': True,
+            'calibration_id': session.calibration_id
+        }
+        
+        # Total timing
+        timings['total_ms'] = (time.time() - start_time) * 1000
+        
+        # Format response
+        response = format_detection_response(
+            detections=detections,
+            marker_type=marker_type,
+            marker_size=marker_size,
+            timings=timings,
+            camera_info=camera_info,
+            warnings=warnings,
+            session_id=session.session_id,
+            calibration_id=session.calibration_id
+        )
+        
+        return jsonify(response)
     
     except Exception as e:
         logger.error(f"Detection error: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'error': str(e),
+            'warnings': warnings
+        }), 500
 
 
 @app.route('/api/v1/supported_markers', methods=['GET'])
