@@ -2405,7 +2405,7 @@ const App = {
             // Wait for video metadata to load (dimensions become available)
             await new Promise((resolve, reject) => {
                 const timeout = setTimeout(() => {
-                    reject(new Error('Video loading timeout - camera may be in use by another app'));
+                    reject(new Error('Video metadata failed to load within 10 seconds'));
                 }, 10000); // 10 second timeout
                 
                 video.addEventListener('loadedmetadata', () => {
@@ -2422,8 +2422,13 @@ const App = {
             
             // Wait for video to actually start playing and have valid dimensions
             await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('Video failed to start - dimensions still 0'));
+                }, 5000); // 5 second timeout
+                
                 const checkReady = () => {
                     if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+                        clearTimeout(timeout);
                         console.log(`Camera ready: ${video.videoWidth}x${video.videoHeight}`);
                         resolve();
                     } else {
@@ -2431,18 +2436,7 @@ const App = {
                     }
                 };
                 
-                const timeout = setTimeout(() => {
-                    reject(new Error('Video failed to start - dimensions still 0'));
-                }, 5000); // 5 second timeout
-                
                 checkReady();
-                Promise.race([
-                    new Promise(r => setTimeout(() => {
-                        clearTimeout(timeout);
-                        r();
-                    }, 5000)),
-                    Promise.resolve()
-                ]).then(() => clearTimeout(timeout));
             });
             
             document.getElementById('status-pill').textContent = "🔍 Initializing vision...";
