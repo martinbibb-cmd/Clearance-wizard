@@ -305,11 +305,16 @@ class AprilTagDetector:
                     best_idx = i
         else:
             # No previous pose - select solution with positive Z and reject mirrors
+            if len(tvecs) == 0:
+                # This shouldn't happen, but handle gracefully
+                raise ValueError("No pose solutions available from solvePnPGeneric")
+            
             best_idx = 0
-            best_z = tvecs[0][2, 0]
+            # Handle both 2D and 1D array shapes from solvePnPGeneric
+            best_z = tvecs[0].flatten()[2] if tvecs[0].ndim > 1 else tvecs[0][2]
             
             for i, tvec in enumerate(tvecs):
-                z = tvec[2, 0]
+                z = tvec.flatten()[2] if tvec.ndim > 1 else tvec[2]
                 # Prefer positive Z (in front of camera) and larger Z values
                 if z > best_z:
                     best_z = z

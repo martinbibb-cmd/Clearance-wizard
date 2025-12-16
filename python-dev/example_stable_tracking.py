@@ -112,9 +112,8 @@ def test_detection_sequence(detector):
     # In real usage, this would come from actual AprilTag detections
     # For demonstration, we'll show the tracking state management
     
-    # Add a simulated tag to tracking state
+    # Define test tag ID for demonstration
     test_tag_id = 42
-    test_pose = (np.array([[0.0], [0.0], [1.0]]), np.array([[0.0], [0.0], [0.0]]))
     
     # Show tracking state
     if test_tag_id in detector.previous_poses:

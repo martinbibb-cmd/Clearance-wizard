@@ -161,23 +161,27 @@ def test_reset_tracking():
         dist_coeffs=dist_coeffs
     )
     
+    # Test tag IDs
+    TEST_TAG_1 = 42
+    TEST_TAG_2 = 99
+    
     # Manually add some tracking data
-    detector.previous_poses[42] = (np.array([[0], [0], [1]]), np.array([[0], [0], [0]]))
-    detector.previous_poses[99] = (np.array([[1], [0], [1]]), np.array([[0], [0], [0]]))
-    detector.tracking_state[42] = 0
-    detector.tracking_state[99] = 0
+    detector.previous_poses[TEST_TAG_1] = (np.array([[0], [0], [1]]), np.array([[0], [0], [0]]))
+    detector.previous_poses[TEST_TAG_2] = (np.array([[1], [0], [1]]), np.array([[0], [0], [0]]))
+    detector.tracking_state[TEST_TAG_1] = 0
+    detector.tracking_state[TEST_TAG_2] = 0
     
     # Test single tag reset
-    detector.reset_tracking(tag_id=42)
+    detector.reset_tracking(tag_id=TEST_TAG_1)
     
-    if 42 not in detector.previous_poses and 42 not in detector.tracking_state:
-        print("✓ Single tag reset works (tag 42 removed)")
+    if TEST_TAG_1 not in detector.previous_poses and TEST_TAG_1 not in detector.tracking_state:
+        print(f"✓ Single tag reset works (tag {TEST_TAG_1} removed)")
     else:
         print("✗ Single tag reset failed")
         return False
     
-    if 99 in detector.previous_poses and 99 in detector.tracking_state:
-        print("✓ Other tags preserved (tag 99 still present)")
+    if TEST_TAG_2 in detector.previous_poses and TEST_TAG_2 in detector.tracking_state:
+        print(f"✓ Other tags preserved (tag {TEST_TAG_2} still present)")
     else:
         print("✗ Other tags incorrectly removed")
         return False
