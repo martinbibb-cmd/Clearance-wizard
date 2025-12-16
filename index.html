@@ -907,6 +907,9 @@ class VisionSystem {
         // Convert detection corners to pose
         const corners = detection.cornersPx;
         
+        // Calculate scale factor to convert from scaled to full resolution coordinates
+        const scaleToFull = 1 / this.scale;
+        
         // Calculate marker width in pixels (average of all four edges)
         // NOTE: corners are in scaled coordinates, need to scale back to full resolution
         const wPxScaled = (
@@ -917,7 +920,7 @@ class VisionSystem {
         ) / 4;
         
         // Scale back to full resolution for accurate depth calculation
-        const wPx = wPxScaled * (1 / this.scale);
+        const wPx = wPxScaled * scaleToFull;
 
         // Calculate pose using pinhole camera model
         const vFovRad = 60 * Math.PI / 180;
@@ -925,8 +928,8 @@ class VisionSystem {
         const z = -(markerSize * focal) / wPx;
 
         // Use center from detection (also scale back to full resolution)
-        const cx = detection.centerPx.x * (1 / this.scale);
-        const cy = detection.centerPx.y * (1 / this.scale);
+        const cx = detection.centerPx.x * scaleToFull;
+        const cy = detection.centerPx.y * scaleToFull;
 
         // Convert to 3D position
         const x = (cx - vw/2) * (Math.abs(z)/focal);
@@ -1056,6 +1059,9 @@ class VisionSystem {
         const vh = video.videoHeight;
         
         const requiredCount = mode === '4-marker' ? 4 : 5;
+        
+        // Calculate scale factor to convert from scaled to full resolution coordinates
+        const scaleToFull = 1 / this.scale;
 
         // Calculate average scale from all detected markers
         let totalScale = 0;
@@ -1072,7 +1078,7 @@ class VisionSystem {
             ) / 4;
             
             // Scale back to full resolution for accurate scale calculation
-            const wPx = wPxScaled * (1 / this.scale);
+            const wPx = wPxScaled * scaleToFull;
 
             totalScale += wPx / markerSize;
             scaleCount++;
@@ -1083,8 +1089,8 @@ class VisionSystem {
         // Calculate centroid
         let centroidX = 0, centroidY = 0;
         for (let detection of detections) {
-            centroidX += detection.centerPx.x * (1 / this.scale);
-            centroidY += detection.centerPx.y * (1 / this.scale);
+            centroidX += detection.centerPx.x * scaleToFull;
+            centroidY += detection.centerPx.y * scaleToFull;
         }
         centroidX /= detections.length;
         centroidY /= detections.length;
