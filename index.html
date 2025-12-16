@@ -2404,6 +2404,12 @@ const App = {
             
             // Wait for video metadata to load (dimensions become available)
             await new Promise((resolve, reject) => {
+                // Check if metadata is already loaded
+                if (video.readyState >= 1) {
+                    resolve();
+                    return;
+                }
+                
                 const timeout = setTimeout(() => {
                     reject(new Error('Video metadata failed to load within 10 seconds'));
                 }, 10000); // 10 second timeout
@@ -2432,7 +2438,8 @@ const App = {
                         console.log(`Camera ready: ${video.videoWidth}x${video.videoHeight}`);
                         resolve();
                     } else {
-                        setTimeout(checkReady, 50);
+                        // Use requestAnimationFrame for better performance
+                        requestAnimationFrame(checkReady);
                     }
                 };
                 
