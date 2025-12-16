@@ -2428,18 +2428,28 @@ const App = {
             
             // Wait for video to actually start playing and have valid dimensions
             await new Promise((resolve, reject) => {
+                let animationFrameId = null;
+                let isResolved = false;
+                
                 const timeout = setTimeout(() => {
+                    isResolved = true;
+                    if (animationFrameId !== null) {
+                        cancelAnimationFrame(animationFrameId);
+                    }
                     reject(new Error('Video failed to start - dimensions still 0'));
                 }, 5000); // 5 second timeout
                 
                 const checkReady = () => {
+                    if (isResolved) return; // Stop checking if already resolved/rejected
+                    
                     if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+                        isResolved = true;
                         clearTimeout(timeout);
                         console.log(`Camera ready: ${video.videoWidth}x${video.videoHeight}`);
                         resolve();
                     } else {
                         // Use requestAnimationFrame for better performance
-                        requestAnimationFrame(checkReady);
+                        animationFrameId = requestAnimationFrame(checkReady);
                     }
                 };
                 
