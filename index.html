@@ -1559,8 +1559,13 @@ class GraphicsEngine {
         this.debugTestObjects = null;
         
         // Smoothing factors for stable AR tracking
-        this.POSITION_SMOOTH_FACTOR = 0.2;  // Position interpolation (0-1, higher = faster response)
-        this.ROTATION_SMOOTH_FACTOR = 0.15; // Rotation interpolation (0-1, higher = faster response)
+        // Balanced values: fast enough to feel responsive, slow enough to filter jitter
+        this.POSITION_SMOOTH_FACTOR = 0.3;  // Position interpolation (0-1, higher = faster response)
+        this.ROTATION_SMOOTH_FACTOR = 0.25; // Rotation interpolation (0-1, higher = faster response)
+        
+        // Position history for tracking stability
+        this.lastValidPosition = null;
+        this.lastValidQuaternion = null;
     }
 
     setStencil(data) {
@@ -1758,12 +1763,48 @@ class GraphicsEngine {
         const scale = new THREE.Vector3();
         poseWebGL.decompose(position, quaternion, scale);
         
+        // Validate extracted pose to prevent erratic behavior
+        // Check for NaN or Infinity values
+        if (!isFinite(position.x) || !isFinite(position.y) || !isFinite(position.z) ||
+            !isFinite(quaternion.x) || !isFinite(quaternion.y) || 
+            !isFinite(quaternion.z) || !isFinite(quaternion.w)) {
+            console.warn('Invalid pose values detected, skipping update');
+            return;
+        }
+        
+        // Detect and reject outlier positions (sudden large jumps)
+        // This prevents erratic movement from detection noise or errors
+        const MAX_POSITION_JUMP = 1000; // 1000mm (1 meter) per frame
+        if (this.lastValidPosition) {
+            const positionDelta = position.distanceTo(this.lastValidPosition);
+            if (positionDelta > MAX_POSITION_JUMP) {
+                console.warn(`Position jump too large (${positionDelta.toFixed(0)}mm), skipping update`);
+                return;
+            }
+        }
+        
+        // Store valid position and quaternion for outlier detection
+        if (!this.lastValidPosition) {
+            this.lastValidPosition = new THREE.Vector3();
+        }
+        if (!this.lastValidQuaternion) {
+            this.lastValidQuaternion = new THREE.Quaternion();
+        }
+        this.lastValidPosition.copy(position);
+        this.lastValidQuaternion.copy(quaternion);
+        
         // Smoothly interpolate to new transformation
         // Update position with smoothing
         this.root.position.lerp(position, this.POSITION_SMOOTH_FACTOR);
         
         // Update rotation with smoothing (slightly slower for more stable rotation)
         this.root.quaternion.slerp(quaternion, this.ROTATION_SMOOTH_FACTOR);
+        
+        // CRITICAL FIX: Ensure scale remains constant at (1, 1, 1)
+        // The transformation matrix should only affect position and rotation, not scale
+        // Decomposed scale values from the matrix can be non-uniform or incorrect
+        // and should not be applied to the AR object
+        this.root.scale.set(1, 1, 1);
     }
 
     showCalibrationAxes() {
@@ -1972,6 +2013,15 @@ class GraphicsEngine {
     }
 
     render() { this.renderer.render(this.scene, this.camera); }
+    
+    /**
+     * Reset tracking state to allow large position jumps on next update
+     * Call this when marker is lost and reacquired to prevent false outlier detection
+     */
+    resetTracking() {
+        this.lastValidPosition = null;
+        this.lastValidQuaternion = null;
+    }
 }
 
 // ==========================================
@@ -2324,6 +2374,9 @@ const App = {
             alert("OpenCV is still loading. Please wait a moment.");
             return;
         }
+        
+        // Initialize tracking state
+        this._markerWasLost = false;
 
         // Get manual depth offset
         const depthOffset = parseInt(document.getElementById('manual-depth-offset').value, 10);
@@ -2540,6 +2593,12 @@ const App = {
         if(!this.locked) {
             const pose = this.vision.findMarker(video, this.markerSize, this.detectionMode);
             if(pose) {
+                // Reset tracking on reacquisition after loss to allow initial position jump
+                if (this._markerWasLost) {
+                    this.graphics.resetTracking();
+                    this._markerWasLost = false;
+                }
+                
                 // Update position with smooth interpolation (only if not partial detection)
                 if (!pose.partialDetection) {
                     // If we have a transformation matrix from solvePnP, use it for accurate plane alignment
@@ -2594,6 +2653,7 @@ const App = {
                 this.updateDeviceInfo(pose);
             } else {
                 // No marker detected - show helpful tips after a few seconds
+                this._markerWasLost = true; // Mark that tracking was lost
                 this.updateDeviceInfo(null);
                 if (!this._noDetectionTime) {
                     this._noDetectionTime = Date.now();
