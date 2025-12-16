@@ -1565,6 +1565,9 @@ class GraphicsEngine {
         
         // Outlier detection threshold for position jumps (in mm)
         // Rejects updates with position changes larger than this to prevent erratic movement
+        // Rationale: At 30fps, a 1m jump would imply 30m/s (108 km/h) movement speed,
+        // which is physically impossible for handheld camera movement with markers
+        // This threshold catches detection errors while allowing all realistic camera motion
         this.MAX_POSITION_JUMP = 1000; // 1000mm = 1 meter per frame
         
         // Position history for tracking stability
@@ -1781,7 +1784,12 @@ class GraphicsEngine {
         if (this.lastValidPosition) {
             const positionDelta = position.distanceTo(this.lastValidPosition);
             if (positionDelta > this.MAX_POSITION_JUMP) {
-                console.warn(`Position jump too large (${positionDelta.toFixed(0)}mm), skipping update`);
+                console.warn(
+                    `Position jump too large (${positionDelta.toFixed(0)}mm), skipping update. ` +
+                    `Threshold: ${this.MAX_POSITION_JUMP}mm. ` +
+                    `Previous: (${this.lastValidPosition.x.toFixed(0)}, ${this.lastValidPosition.y.toFixed(0)}, ${this.lastValidPosition.z.toFixed(0)}), ` +
+                    `New: (${position.x.toFixed(0)}, ${position.y.toFixed(0)}, ${position.z.toFixed(0)})`
+                );
                 return;
             }
         }

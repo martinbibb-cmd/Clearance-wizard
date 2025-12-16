@@ -248,8 +248,10 @@ def test_smoothing_responsiveness():
     pos_frames = np.log(CONVERGENCE_THRESHOLD) / np.log(1 - POSITION_SMOOTH)
     rot_frames = np.log(CONVERGENCE_THRESHOLD) / np.log(1 - ROTATION_SMOOTH)
     
-    print(f"  Position converges to 95% in ~{pos_frames:.1f} frames (at 30fps: {pos_frames/30:.2f}s)")
-    print(f"  Rotation converges to 95% in ~{rot_frames:.1f} frames (at 30fps: {rot_frames/30:.2f}s)")
+    # Note: Actual convergence time depends on device frame rate
+    # Modern devices: 60fps (faster), older devices: 20-30fps (slower)
+    print(f"  Position converges to 95% in ~{pos_frames:.1f} frames (at 30fps: {pos_frames/30:.2f}s, at 60fps: {pos_frames/60:.2f}s)")
+    print(f"  Rotation converges to 95% in ~{rot_frames:.1f} frames (at 30fps: {rot_frames/30:.2f}s, at 60fps: {rot_frames/60:.2f}s)")
     
     print("✓ Smoothing factors optimized for responsiveness\n")
     return True
