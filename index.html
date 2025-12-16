@@ -1563,6 +1563,10 @@ class GraphicsEngine {
         this.POSITION_SMOOTH_FACTOR = 0.3;  // Position interpolation (0-1, higher = faster response)
         this.ROTATION_SMOOTH_FACTOR = 0.25; // Rotation interpolation (0-1, higher = faster response)
         
+        // Outlier detection threshold for position jumps (in mm)
+        // Rejects updates with position changes larger than this to prevent erratic movement
+        this.MAX_POSITION_JUMP = 1000; // 1000mm = 1 meter per frame
+        
         // Position history for tracking stability
         this.lastValidPosition = null;
         this.lastValidQuaternion = null;
@@ -1774,10 +1778,9 @@ class GraphicsEngine {
         
         // Detect and reject outlier positions (sudden large jumps)
         // This prevents erratic movement from detection noise or errors
-        const MAX_POSITION_JUMP = 1000; // 1000mm (1 meter) per frame
         if (this.lastValidPosition) {
             const positionDelta = position.distanceTo(this.lastValidPosition);
-            if (positionDelta > MAX_POSITION_JUMP) {
+            if (positionDelta > this.MAX_POSITION_JUMP) {
                 console.warn(`Position jump too large (${positionDelta.toFixed(0)}mm), skipping update`);
                 return;
             }

@@ -218,6 +218,9 @@ def test_smoothing_responsiveness():
     OLD_POSITION_SMOOTH = 0.2
     OLD_ROTATION_SMOOTH = 0.15
     
+    # Convergence threshold (95% of target)
+    CONVERGENCE_THRESHOLD = 0.05  # 5% remaining = 95% converged
+    
     # Validate range
     if 0 < POSITION_SMOOTH <= 1:
         print(f"✓ Position smoothing factor in valid range: {POSITION_SMOOTH}")
@@ -240,10 +243,10 @@ def test_smoothing_responsiveness():
         improvement = ((ROTATION_SMOOTH - OLD_ROTATION_SMOOTH) / OLD_ROTATION_SMOOTH) * 100
         print(f"✓ Rotation smoothing improved by {improvement:.1f}%")
     
-    # Calculate convergence time (frames to reach 95% of target)
-    # Formula: t = ln(0.05) / ln(1 - alpha)
-    pos_frames = np.log(0.05) / np.log(1 - POSITION_SMOOTH)
-    rot_frames = np.log(0.05) / np.log(1 - ROTATION_SMOOTH)
+    # Calculate convergence time (frames to reach target threshold)
+    # Formula: t = ln(threshold) / ln(1 - alpha)
+    pos_frames = np.log(CONVERGENCE_THRESHOLD) / np.log(1 - POSITION_SMOOTH)
+    rot_frames = np.log(CONVERGENCE_THRESHOLD) / np.log(1 - ROTATION_SMOOTH)
     
     print(f"  Position converges to 95% in ~{pos_frames:.1f} frames (at 30fps: {pos_frames/30:.2f}s)")
     print(f"  Rotation converges to 95% in ~{rot_frames:.1f} frames (at 30fps: {rot_frames/30:.2f}s)")
