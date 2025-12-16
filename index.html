@@ -674,9 +674,25 @@ class VisionSystem {
     }
 
     async init(video, markerType = 'aruco') {
+        // Validate video element and dimensions
+        if (!video) {
+            throw new Error('Video element is required');
+        }
+        
+        if (!video.videoWidth || !video.videoHeight || video.videoWidth <= 0 || video.videoHeight <= 0) {
+            throw new Error(`Invalid video dimensions: ${video.videoWidth}x${video.videoHeight}. Camera stream may not be ready.`);
+        }
+        
+        console.log(`Initializing vision system with video dimensions: ${video.videoWidth}x${video.videoHeight}`);
+        
         // Initialize Mats with scaled dimensions to match canvas size
         const w = Math.floor(video.videoWidth * this.scale);
         const h = Math.floor(video.videoHeight * this.scale);
+        
+        // Additional validation for scaled dimensions
+        if (w <= 0 || h <= 0) {
+            throw new Error(`Invalid scaled dimensions: ${w}x${h} (scale=${this.scale})`);
+        }
 
         this.markerType = markerType;
         this.useAruco = (markerType === 'aruco');
@@ -773,8 +789,21 @@ class VisionSystem {
 
     findMarker(video, markerSize, detectionMode = 'single') {
         if(!this.ready) return null;
+        
+        // Safety check: ensure video has valid dimensions
+        if (!video || !video.videoWidth || !video.videoHeight || video.videoWidth <= 0 || video.videoHeight <= 0) {
+            console.warn('Video dimensions not valid yet:', video?.videoWidth, video?.videoHeight);
+            return null;
+        }
+        
         const w = Math.floor(video.videoWidth * this.scale);
         const h = Math.floor(video.videoHeight * this.scale);
+        
+        // Additional validation for scaled dimensions
+        if (w <= 0 || h <= 0) {
+            console.warn('Invalid scaled dimensions:', w, h);
+            return null;
+        }
 
         if(!this._ctx) {
             const c = document.createElement('canvas');
@@ -2362,12 +2391,91 @@ const App = {
         document.getElementById('menu-panel').classList.add('hidden');
         document.getElementById('controls-panel').classList.remove('hidden');
         document.getElementById('status-pill').classList.remove('hidden');
-        document.getElementById('status-pill').textContent = "🔍 Point at Marker...";
+        document.getElementById('status-pill').textContent = "📷 Starting camera...";
 
         const video = document.getElementById('camera-layer');
-        video.srcObject = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: 'environment', width: { ideal: 1280 } } 
-        });
+        
+        try {
+            // Request camera access
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'environment', width: { ideal: 1280 } } 
+            });
+            video.srcObject = stream;
+            
+            // Wait for video metadata to load (dimensions become available)
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('Video loading timeout - camera may be in use by another app'));
+                }, 10000); // 10 second timeout
+                
+                video.addEventListener('loadedmetadata', () => {
+                    clearTimeout(timeout);
+                    resolve();
+                }, { once: true });
+                
+                // Also handle error cases
+                video.addEventListener('error', (e) => {
+                    clearTimeout(timeout);
+                    reject(new Error('Video loading error: ' + (e.message || 'Unknown error')));
+                }, { once: true });
+            });
+            
+            // Wait for video to actually start playing and have valid dimensions
+            await new Promise((resolve, reject) => {
+                const checkReady = () => {
+                    if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+                        console.log(`Camera ready: ${video.videoWidth}x${video.videoHeight}`);
+                        resolve();
+                    } else {
+                        setTimeout(checkReady, 50);
+                    }
+                };
+                
+                const timeout = setTimeout(() => {
+                    reject(new Error('Video failed to start - dimensions still 0'));
+                }, 5000); // 5 second timeout
+                
+                checkReady();
+                Promise.race([
+                    new Promise(r => setTimeout(() => {
+                        clearTimeout(timeout);
+                        r();
+                    }, 5000)),
+                    Promise.resolve()
+                ]).then(() => clearTimeout(timeout));
+            });
+            
+            document.getElementById('status-pill').textContent = "🔍 Initializing vision...";
+            
+        } catch (error) {
+            console.error('Camera initialization error:', error);
+            document.getElementById('status-pill').textContent = "❌ Camera failed";
+            document.getElementById('status-pill').className = "";
+            
+            // Show helpful error message to user
+            let errorMessage = 'Failed to access camera.\n\n';
+            if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                errorMessage += 'Camera access was denied. Please:\n';
+                errorMessage += '1. Grant camera permission in your browser settings\n';
+                errorMessage += '2. Reload the page and try again';
+            } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                errorMessage += 'No camera was found on this device.\n';
+                errorMessage += 'Please check that your device has a working camera.';
+            } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+                errorMessage += 'Camera is already in use by another application.\n';
+                errorMessage += 'Please close other apps using the camera and try again.';
+            } else {
+                errorMessage += error.message || 'Unknown error occurred.';
+            }
+            
+            alert(errorMessage);
+            
+            // Return to menu
+            document.getElementById('menu-panel').classList.remove('hidden');
+            document.getElementById('controls-panel').classList.add('hidden');
+            document.getElementById('status-pill').classList.add('hidden');
+            return;
+        }
 
         this.graphics = new GraphicsEngine(document.getElementById('ar-layer'));
         this.graphics.setStencil(data);
@@ -2385,7 +2493,21 @@ const App = {
         }
         
         this.setupTouch();
-        await this.vision.init(video, this.markerType);
+        
+        try {
+            await this.vision.init(video, this.markerType);
+            console.log('Vision system initialized successfully');
+        } catch (error) {
+            console.error('Vision initialization error:', error);
+            document.getElementById('status-pill').textContent = "❌ Vision init failed";
+            alert('Failed to initialize vision system:\n' + error.message);
+            
+            // Return to menu
+            document.getElementById('menu-panel').classList.remove('hidden');
+            document.getElementById('controls-panel').classList.add('hidden');
+            document.getElementById('status-pill').classList.add('hidden');
+            return;
+        }
         
         // Apply lens correction setting if enabled
         const lensCorrection = localStorage.getItem('lensCorrection') === 'true';
@@ -2393,6 +2515,7 @@ const App = {
             this.vision.setLensCorrection(true);
         }
         
+        document.getElementById('status-pill').textContent = "🔍 Point at Marker...";
         this.loop();
     },
 
