@@ -27,6 +27,12 @@ class AprilTagDetector:
     PnP (Perspective-n-Point) to return the 3D position and orientation
     (translation vector and rotation matrix) relative to the camera.
     
+    Includes stability improvements for near-field tracking:
+    - Minimum distance enforcement
+    - Pose continuity checking with solvePnPGeneric
+    - Temporal smoothing to reduce jitter
+    - Adaptive rejection thresholds
+    
     Parameters
     ----------
     tag_size : float
@@ -39,6 +45,17 @@ class AprilTagDetector:
     tag_family : str, optional
         AprilTag family to detect. Default is 'tagStandard41h12'.
         Other options: 'tag36h11', 'tag25h9', 'tag16h5', etc.
+    min_distance : float, optional
+        Minimum distance in meters for stable pose estimation.
+        Default is 2 * tag_size (recommended rule of thumb).
+    max_reprojection_error : float, optional
+        Maximum allowed reprojection error in pixels. Default is 5.0.
+        Near-field markers naturally have higher error.
+    smoothing_alpha : float, optional
+        Smoothing factor for temporal filtering (0-1). Default is 0.3.
+        0 = no smoothing, 1 = use only new measurement.
+    lost_timeout_frames : int, optional
+        Number of frames to wait before declaring marker lost. Default is 5.
     
     Attributes
     ----------
@@ -50,6 +67,10 @@ class AprilTagDetector:
         Camera distortion coefficients.
     detector : apriltag.Detector
         AprilTag detector instance.
+    previous_poses : dict
+        Dictionary storing previous poses for each tag_id for continuity.
+    tracking_state : dict
+        Dictionary storing tracking state (frames_lost) for each tag_id.
     """
     
     def __init__(
@@ -57,7 +78,11 @@ class AprilTagDetector:
         tag_size: float,
         camera_matrix: np.ndarray,
         dist_coeffs: np.ndarray,
-        tag_family: str = 'tagStandard41h12'
+        tag_family: str = 'tagStandard41h12',
+        min_distance: Optional[float] = None,
+        max_reprojection_error: float = 5.0,
+        smoothing_alpha: float = 0.3,
+        lost_timeout_frames: int = 5
     ):
         """Initialize the AprilTag detector with camera calibration parameters."""
         if apriltag is None:
@@ -72,6 +97,16 @@ class AprilTagDetector:
         self.tag_size = tag_size
         self.camera_matrix = camera_matrix
         self.dist_coeffs = dist_coeffs
+        
+        # Stability parameters
+        self.min_distance = min_distance if min_distance is not None else 2.0 * tag_size
+        self.max_reprojection_error = max_reprojection_error
+        self.smoothing_alpha = smoothing_alpha
+        self.lost_timeout_frames = lost_timeout_frames
+        
+        # Tracking state
+        self.previous_poses = {}  # tag_id -> (tvec, rvec)
+        self.tracking_state = {}  # tag_id -> frames_lost
         
         # Initialize AprilTag detector
         options = apriltag.DetectorOptions(families=tag_family)
@@ -93,6 +128,13 @@ class AprilTagDetector:
         """
         Detect all AprilTags in the image and estimate their 3D pose.
         
+        Implements stability improvements:
+        - Uses solvePnPGeneric to get multiple pose solutions
+        - Selects solution with minimal change from previous frame
+        - Applies temporal smoothing to reduce jitter
+        - Validates minimum distance and reprojection error
+        - Maintains tracking state with timeout
+        
         Parameters
         ----------
         image : np.ndarray
@@ -108,6 +150,8 @@ class AprilTagDetector:
             - 'translation': np.ndarray - 3D translation vector (tx, ty, tz)
             - 'rotation_matrix': np.ndarray - 3x3 rotation matrix
             - 'rotation_vector': np.ndarray - 3D rotation vector (Rodrigues)
+            - 'tracking_status': str - 'detected', 'tracking', or 'lost'
+            - 'reprojection_error': float - Reprojection error in pixels
         
         Examples
         --------
@@ -125,13 +169,20 @@ class AprilTagDetector:
         # Detect AprilTags
         results = self.detector.detect(gray)
         
+        # Track which tags were detected this frame
+        detected_tag_ids = set()
+        
         detections = []
         for result in results:
+            tag_id = result.tag_id
+            detected_tag_ids.add(tag_id)
+            
             # Get 2D corner positions in image
             image_points = result.corners.astype(np.float32)
             
-            # Solve PnP to get pose
-            success, rvec, tvec = cv2.solvePnP(
+            # Use solvePnPGeneric to get all possible solutions
+            # This helps handle corner order ambiguity
+            success, rvecs, tvecs, reprojection_errors = cv2.solvePnPGeneric(
                 self.object_points,
                 image_points,
                 self.camera_matrix,
@@ -139,23 +190,281 @@ class AprilTagDetector:
                 flags=cv2.SOLVEPNP_IPPE_SQUARE  # Best for planar objects
             )
             
-            if success:
-                # Convert rotation vector to rotation matrix
-                rotation_matrix, _ = cv2.Rodrigues(rvec)
-                
-                detection = {
-                    'tag_id': result.tag_id,
-                    'center': result.center,
-                    'corners': result.corners,
-                    'translation': tvec.flatten(),
-                    'rotation_matrix': rotation_matrix,
-                    'rotation_vector': rvec.flatten(),
-                    'hamming': result.hamming,  # Error metric (lower is better)
-                    'decision_margin': result.decision_margin,  # Confidence metric
-                }
-                detections.append(detection)
+            if not success or len(rvecs) == 0:
+                continue
+            
+            # Select best solution based on continuity with previous frame
+            best_rvec, best_tvec, best_idx = self._select_best_pose(
+                tag_id, rvecs, tvecs
+            )
+            
+            # Validate distance
+            distance = np.linalg.norm(best_tvec)
+            if distance < self.min_distance:
+                # Too close - skip this detection
+                continue
+            
+            # Calculate reprojection error for the selected solution
+            if len(reprojection_errors) > best_idx:
+                reproj_error = reprojection_errors[best_idx][0]
+            else:
+                # Calculate manually if not provided
+                reproj_error = self._calculate_reprojection_error(
+                    best_rvec, best_tvec, image_points
+                )
+            
+            # Validate reprojection error with distance-aware threshold
+            # Near-field markers can have higher error, so scale threshold
+            distance_factor = max(1.0, self.min_distance / distance)
+            adjusted_threshold = self.max_reprojection_error * distance_factor
+            
+            if reproj_error > adjusted_threshold:
+                # Reprojection error too high - skip
+                continue
+            
+            # Apply temporal smoothing if we have a previous pose
+            if tag_id in self.previous_poses:
+                prev_tvec, prev_rvec = self.previous_poses[tag_id]
+                best_tvec = self._smooth_pose(prev_tvec, best_tvec)
+                best_rvec = self._smooth_rotation(prev_rvec, best_rvec)
+                tracking_status = 'tracking'
+            else:
+                tracking_status = 'detected'
+            
+            # Store current pose for next frame
+            self.previous_poses[tag_id] = (best_tvec.copy(), best_rvec.copy())
+            self.tracking_state[tag_id] = 0  # Reset lost counter
+            
+            # Convert rotation vector to rotation matrix
+            rotation_matrix, _ = cv2.Rodrigues(best_rvec)
+            
+            detection = {
+                'tag_id': tag_id,
+                'center': result.center,
+                'corners': result.corners,
+                'translation': best_tvec.flatten(),
+                'rotation_matrix': rotation_matrix,
+                'rotation_vector': best_rvec.flatten(),
+                'hamming': result.hamming,  # Error metric (lower is better)
+                'decision_margin': result.decision_margin,  # Confidence metric
+                'tracking_status': tracking_status,
+                'reprojection_error': reproj_error,
+            }
+            detections.append(detection)
+        
+        # Update tracking state for tags not detected this frame
+        self._update_lost_tags(detected_tag_ids)
         
         return detections
+    
+    def _select_best_pose(
+        self,
+        tag_id: int,
+        rvecs: List[np.ndarray],
+        tvecs: List[np.ndarray]
+    ) -> Tuple[np.ndarray, np.ndarray, int]:
+        """
+        Select the best pose from multiple solutions.
+        
+        If we have a previous pose, select the solution closest to it.
+        Otherwise, select the solution with positive Z (in front of camera).
+        
+        Parameters
+        ----------
+        tag_id : int
+            Tag ID for tracking.
+        rvecs : List[np.ndarray]
+            List of rotation vectors from solvePnPGeneric.
+        tvecs : List[np.ndarray]
+            List of translation vectors from solvePnPGeneric.
+        
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray, int]
+            Best rotation vector, translation vector, and index.
+        """
+        if tag_id in self.previous_poses:
+            # Select solution with minimal change from previous frame
+            prev_tvec, prev_rvec = self.previous_poses[tag_id]
+            
+            min_delta = float('inf')
+            best_idx = 0
+            
+            for i, (rvec, tvec) in enumerate(zip(rvecs, tvecs)):
+                # Calculate position delta
+                pos_delta = np.linalg.norm(tvec - prev_tvec)
+                
+                # Calculate rotation delta (angle between rotations)
+                rot_delta = self._rotation_distance(prev_rvec, rvec)
+                
+                # Combined metric (weighted)
+                total_delta = pos_delta + 0.5 * rot_delta
+                
+                if total_delta < min_delta:
+                    min_delta = total_delta
+                    best_idx = i
+        else:
+            # No previous pose - select solution with positive Z and reject mirrors
+            if len(tvecs) == 0:
+                # This shouldn't happen, but handle gracefully
+                raise ValueError("No pose solutions available from solvePnPGeneric")
+            
+            best_idx = 0
+            # Handle both 2D and 1D array shapes from solvePnPGeneric
+            best_z = tvecs[0].flatten()[2] if tvecs[0].ndim > 1 else tvecs[0][2]
+            
+            for i, tvec in enumerate(tvecs):
+                z = tvec.flatten()[2] if tvec.ndim > 1 else tvec[2]
+                # Prefer positive Z (in front of camera) and larger Z values
+                if z > best_z:
+                    best_z = z
+                    best_idx = i
+        
+        return rvecs[best_idx], tvecs[best_idx], best_idx
+    
+    def _rotation_distance(self, rvec1: np.ndarray, rvec2: np.ndarray) -> float:
+        """
+        Calculate angular distance between two rotation vectors.
+        
+        Parameters
+        ----------
+        rvec1 : np.ndarray
+            First rotation vector.
+        rvec2 : np.ndarray
+            Second rotation vector.
+        
+        Returns
+        -------
+        float
+            Angular distance in radians.
+        """
+        # Convert to rotation matrices
+        R1, _ = cv2.Rodrigues(rvec1)
+        R2, _ = cv2.Rodrigues(rvec2)
+        
+        # Calculate relative rotation
+        R_delta = R1.T @ R2
+        
+        # Extract angle from rotation matrix
+        trace = np.trace(R_delta)
+        angle = np.arccos(np.clip((trace - 1) / 2, -1, 1))
+        
+        return angle
+    
+    def _smooth_pose(self, prev_tvec: np.ndarray, new_tvec: np.ndarray) -> np.ndarray:
+        """
+        Apply exponential smoothing to translation vector.
+        
+        Parameters
+        ----------
+        prev_tvec : np.ndarray
+            Previous translation vector.
+        new_tvec : np.ndarray
+            New translation vector.
+        
+        Returns
+        -------
+        np.ndarray
+            Smoothed translation vector.
+        """
+        alpha = self.smoothing_alpha
+        return alpha * new_tvec + (1 - alpha) * prev_tvec
+    
+    def _smooth_rotation(self, prev_rvec: np.ndarray, new_rvec: np.ndarray) -> np.ndarray:
+        """
+        Apply SLERP-like smoothing to rotation vector.
+        
+        Parameters
+        ----------
+        prev_rvec : np.ndarray
+            Previous rotation vector.
+        new_rvec : np.ndarray
+            New rotation vector.
+        
+        Returns
+        -------
+        np.ndarray
+            Smoothed rotation vector.
+        """
+        # Simple linear interpolation in rotation vector space
+        # For better results, could use SLERP in quaternion space
+        alpha = self.smoothing_alpha
+        return alpha * new_rvec + (1 - alpha) * prev_rvec
+    
+    def _calculate_reprojection_error(
+        self,
+        rvec: np.ndarray,
+        tvec: np.ndarray,
+        image_points: np.ndarray
+    ) -> float:
+        """
+        Calculate reprojection error for a pose.
+        
+        Parameters
+        ----------
+        rvec : np.ndarray
+            Rotation vector.
+        tvec : np.ndarray
+            Translation vector.
+        image_points : np.ndarray
+            Observed 2D corner positions.
+        
+        Returns
+        -------
+        float
+            RMS reprojection error in pixels.
+        """
+        # Project 3D points to 2D
+        projected, _ = cv2.projectPoints(
+            self.object_points,
+            rvec,
+            tvec,
+            self.camera_matrix,
+            self.dist_coeffs
+        )
+        projected = projected.reshape(-1, 2)
+        
+        # Calculate RMS error
+        errors = np.linalg.norm(projected - image_points, axis=1)
+        return np.sqrt(np.mean(errors ** 2))
+    
+    def _update_lost_tags(self, detected_tag_ids: set):
+        """
+        Update tracking state for tags not detected this frame.
+        
+        Parameters
+        ----------
+        detected_tag_ids : set
+            Set of tag IDs detected in current frame.
+        """
+        # Increment lost counter for tags not detected
+        for tag_id in list(self.tracking_state.keys()):
+            if tag_id not in detected_tag_ids:
+                self.tracking_state[tag_id] += 1
+                
+                # Remove from tracking if lost for too long
+                if self.tracking_state[tag_id] > self.lost_timeout_frames:
+                    del self.tracking_state[tag_id]
+                    if tag_id in self.previous_poses:
+                        del self.previous_poses[tag_id]
+    
+    def reset_tracking(self, tag_id: Optional[int] = None):
+        """
+        Reset tracking state for a specific tag or all tags.
+        
+        Parameters
+        ----------
+        tag_id : int, optional
+            Tag ID to reset. If None, reset all tags.
+        """
+        if tag_id is None:
+            self.previous_poses.clear()
+            self.tracking_state.clear()
+        else:
+            if tag_id in self.previous_poses:
+                del self.previous_poses[tag_id]
+            if tag_id in self.tracking_state:
+                del self.tracking_state[tag_id]
     
     def get_pose_from_tag_id(
         self,
