@@ -20,6 +20,13 @@ This provides robust and accurate 3D pose tracking even when markers are tempora
 - Performs Perspective-n-Point (PnP) to estimate 3D pose
 - Returns translation vector and rotation matrix relative to camera
 - Supports multiple tag families (tagStandard41h12, tag36h11, etc.)
+- **✨ NEW: Pose Stability Features** (addresses near-field tracking collapse)
+  - Minimum distance enforcement to prevent instability
+  - Pose continuity with `solvePnPGeneric` to resolve corner ambiguity
+  - Temporal smoothing to reduce jitter
+  - Distance-aware reprojection error thresholds
+  - Tracking state machine (detected → tracking → lost)
+  - See [POSE_STABILITY_GUIDE.md](POSE_STABILITY_GUIDE.md) for details
 
 #### 2. IMUProcessor (`vio/imu_processor.py`)
 - Pre-integrates high-frequency IMU measurements
@@ -610,6 +617,54 @@ For questions or issues:
 1. Check the documentation above
 2. Review the inline code comments (NumPy style docstrings)
 3. Open an issue on GitHub
+
+## Pose Estimation Stability
+
+The AprilTagDetector now includes comprehensive stability features to address common tracking issues:
+
+### Quick Reference
+
+```python
+# Enable stability features (all optional)
+detector = AprilTagDetector(
+    tag_size=0.19,  # 190mm marker
+    camera_matrix=K,
+    dist_coeffs=D,
+    min_distance=0.38,  # 2×tag_size (recommended)
+    max_reprojection_error=5.0,  # pixels
+    smoothing_alpha=0.3,  # 0=heavy smooth, 1=no smooth
+    lost_timeout_frames=5  # frames before declaring lost
+)
+```
+
+### Key Features
+
+1. **Minimum Distance Enforcement**: Prevents near-field instability
+2. **Pose Continuity**: Resolves corner order ambiguity with `solvePnPGeneric`
+3. **Temporal Smoothing**: Reduces jitter through exponential filtering
+4. **Distance-Aware Thresholds**: Adapts error limits based on marker distance
+5. **Tracking State Machine**: Detection → Tracking → Lost (with timeout)
+
+### Recommended Marker Sizes
+
+- **40-50mm**: Close-up work (80-100mm min distance)
+- **80-100mm**: Standard installations (160-200mm min distance)
+- **190mm (A4)**: Best for distance (380mm min distance) ⭐ **Recommended**
+
+**Rule of thumb**: `distance ≥ 2 × marker_size`
+
+### Documentation
+
+- **[POSE_STABILITY_GUIDE.md](POSE_STABILITY_GUIDE.md)**: Complete guide with troubleshooting
+- **[example_stable_tracking.py](example_stable_tracking.py)**: Demonstration of all features
+- **[test_stability_features.py](test_stability_features.py)**: Validation tests
+
+### Common Issues Resolved
+
+✅ Marker detected briefly then "dies"  
+✅ Pose jumps wildly between frames  
+✅ Tracking loss at close distances  
+✅ Better stability than basic ArUco tracking  
 
 ## Contributing
 
