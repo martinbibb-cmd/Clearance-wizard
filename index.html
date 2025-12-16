@@ -220,7 +220,7 @@
             </label>
             <select id="input-marker-type" onchange="App.onMarkerTypeChange()" style="font-size: 0.95rem;">
                 <option value="aruco">ArUco</option>
-                <option value="apriltag">✨ AprilTag</option>
+                <option value="apriltag" selected>✨ AprilTag</option>
             </select>
 
             <!-- ArUco Dictionary Selection (shown for ArUco) -->
@@ -279,7 +279,7 @@
                     <option value="53">53mm (Credit Card)</option>
                     <option value="148">148mm (A5)</option>
                     <option value="167">167mm (A4)</option>
-                    <option value="190">190mm (Recommended) ⭐</option>
+                    <option value="190" selected>190mm (Recommended) ⭐</option>
                     <option value="custom">✏️ Custom...</option>
                 </select>
 
@@ -1952,7 +1952,7 @@ const App = {
     markerSize: 190,
     detectionMode: 'single',
     multiMarkerSize: 90,
-    markerType: 'aruco', // 'aruco' or 'apriltag'
+    markerType: 'apriltag', // 'aruco' or 'apriltag'
     vision: new VisionSystem(),
     graphics: null,
     locked: false,
@@ -1977,6 +1977,9 @@ const App = {
         
         // Initialize debug test objects from localStorage
         this.initDebugTestObjects();
+        
+        // Initialize marker type UI to match default selection
+        this.onMarkerTypeChange();
         
         // Start a timeout. If initialization is not complete after 10 seconds, assume failure.
         this.loadTimeoutId = setTimeout(() => {
