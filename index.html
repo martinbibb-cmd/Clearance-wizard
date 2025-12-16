@@ -908,19 +908,23 @@ class VisionSystem {
         const corners = detection.cornersPx;
         
         // Calculate marker width in pixels (average of all four edges)
-        const wPx = (
+        // NOTE: corners are in scaled coordinates, need to scale back to full resolution
+        const wPxScaled = (
             Math.hypot(corners[0].x-corners[1].x, corners[0].y-corners[1].y) +
             Math.hypot(corners[1].x-corners[2].x, corners[1].y-corners[2].y) +
             Math.hypot(corners[2].x-corners[3].x, corners[2].y-corners[3].y) +
             Math.hypot(corners[3].x-corners[0].x, corners[3].y-corners[0].y)
         ) / 4;
+        
+        // Scale back to full resolution for accurate depth calculation
+        const wPx = wPxScaled * (1 / this.scale);
 
         // Calculate pose using pinhole camera model
         const vFovRad = 60 * Math.PI / 180;
         const focal = (vh / 2) / Math.tan(vFovRad / 2);
         const z = -(markerSize * focal) / wPx;
 
-        // Use center from detection
+        // Use center from detection (also scale back to full resolution)
         const cx = detection.centerPx.x * (1 / this.scale);
         const cy = detection.centerPx.y * (1 / this.scale);
 
@@ -1059,12 +1063,16 @@ class VisionSystem {
 
         for (let detection of detections) {
             const corners = detection.cornersPx;
-            const wPx = (
+            // NOTE: corners are in scaled coordinates, need to scale back to full resolution
+            const wPxScaled = (
                 Math.hypot(corners[0].x-corners[1].x, corners[0].y-corners[1].y) +
                 Math.hypot(corners[1].x-corners[2].x, corners[1].y-corners[2].y) +
                 Math.hypot(corners[2].x-corners[3].x, corners[2].y-corners[3].y) +
                 Math.hypot(corners[3].x-corners[0].x, corners[3].y-corners[0].y)
             ) / 4;
+            
+            // Scale back to full resolution for accurate scale calculation
+            const wPx = wPxScaled * (1 / this.scale);
 
             totalScale += wPx / markerSize;
             scaleCount++;
