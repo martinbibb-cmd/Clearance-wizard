@@ -12,7 +12,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Node.js dependencies (will be installed during build if needed)
+# Node.js dependencies (this web app has no external dependencies)
 node_modules/
 
 # Git and development files
