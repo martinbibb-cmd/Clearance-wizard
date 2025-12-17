@@ -1566,6 +1566,10 @@ class GraphicsEngine {
         this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.root = new THREE.Group();
+        
+        // Initialize scale to (1, 1, 1) to prevent any initial scaling issues
+        this.root.scale.set(1, 1, 1);
+        
         this.scene.add(this.root);
         this.stencil = null;
         this.parallaxEnabled = true;
@@ -2046,6 +2050,10 @@ class GraphicsEngine {
     resetTracking() {
         this.lastValidPosition = null;
         this.lastValidQuaternion = null;
+        
+        // Ensure scale is reset to (1, 1, 1) when tracking is reset
+        // This prevents any accumulated scale from persisting across tracking sessions
+        this.root.scale.set(1, 1, 1);
     }
 }
 
@@ -2649,6 +2657,11 @@ const App = {
                             r.y += (pose.rotation.y - r.y) * 0.15;
                             r.z += (pose.rotation.z - r.z) * 0.15;
                         }
+                        
+                        // CRITICAL FIX: Ensure scale remains constant at (1, 1, 1)
+                        // This prevents scale accumulation from any previous transformations
+                        // and ensures consistent object sizing regardless of rendering path
+                        this.graphics.root.scale.set(1, 1, 1);
                     }
                 }
 
