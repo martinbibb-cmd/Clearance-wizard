@@ -2,6 +2,23 @@
   "name": "clearance",
   "compatibility_date": "2025-12-13",
   "assets": {
-    "directory": "."
+    "directory": ".",
+    "exclude": [
+      "node_modules/**",
+      "apps/**",
+      "packages/**",
+      "python-dev/**",
+      "**/*.py",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.pytest_cache/**",
+      "**/*.md",
+      ".git/**",
+      ".github/**",
+      ".gitignore",
+      ".cfignore",
+      "test_ar_alignment.html",
+      "test-*.html"
+    ]
   }
 }
