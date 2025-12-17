@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import type { Pack, SiteMetadata, BoilerContext } from '@clearance-wizard/core';
 import { database } from '../storage/database';
+import { generatePackId } from '../utils/uuid';
 
 interface SiteDetailsScreenProps {
   navigation: any;
@@ -51,7 +52,7 @@ export const SiteDetailsScreen: React.FC<SiteDetailsScreenProps> = ({
       };
 
       const pack: Pack = {
-        packId: route.params.packId || `pack-${Date.now()}`,
+        packId: route.params.packId || generatePackId(),
         createdAt: Date.now(),
         updatedAt: Date.now(),
         site,
