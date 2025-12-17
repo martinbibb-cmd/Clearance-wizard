@@ -105,9 +105,14 @@ def test_scale_accumulation_without_fix():
     buggy_scale = np.array([1.0, 1.0, 1.0])
     
     # Simulate just 10 iterations to show the problem quickly
+    # Scale error factors represent typical numerical errors from matrix operations
+    SCALE_ERROR_X = 1.01  # 1% error in X axis
+    SCALE_ERROR_Y = 0.99  # 1% error in Y axis (opposite direction)
+    SCALE_ERROR_Z = 1.02  # 2% error in Z axis
+    
     for i in range(10):
         # Create transformation with slight scale error
-        R = np.eye(3) * np.array([1.01, 0.99, 1.02])  # Slight non-uniform scale
+        R = np.eye(3) * np.array([SCALE_ERROR_X, SCALE_ERROR_Y, SCALE_ERROR_Z])
         
         U, S, Vt = np.linalg.svd(R)
         extracted_scale = S

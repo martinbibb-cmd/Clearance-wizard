@@ -22,7 +22,7 @@ The problem occurred because:
    - Frame 1: scale = `[1.02, 0.98, 1.05]`
    - Frame 2: scale = `[1.04, 0.96, 1.10]` (compounded)
    - Frame 3: scale = `[1.06, 0.94, 1.16]` (continues growing)
-   - After 100 frames: scale could be `[1.21, 0.90, 1.35]` → object appears 21% wider!
+   - After 100 frames: scale could be `[1.21, 0.90, 1.35]` → object width increases by 21%!
 
 3. **Inconsistent behavior between rendering paths** - The application has two rendering paths:
    - **Transformation matrix path** (`applyTransformationMatrix`) - Uses full 4x4 matrix from OpenCV's solvePnP for accurate plane alignment. This path had the fix.
@@ -42,9 +42,9 @@ U, S, Vt = np.linalg.svd(T[:3, :3])
 extracted_scale = S  # Returns [3.0, 2.0, 1.5] - non-uniform!
 ```
 
-The test in `test_scale_persistence.py` shows that without the fix, scale grows exponentially:
-- After just 10 iterations: `[1.22, 1.10, 0.90]` (22% larger!)
-- This compounds every frame, making objects appear increasingly oversized
+The test in `test_scale_persistence.py` shows that without the fix, scale changes non-uniformly over time:
+- After just 10 iterations: `[1.22, 1.10, 0.90]` (non-uniform scaling with X axis 22% larger, Y axis 10% larger, Z axis 10% smaller)
+- This compounds every frame, making objects appear distorted and increasingly oversized
 
 ## The Fix
 
