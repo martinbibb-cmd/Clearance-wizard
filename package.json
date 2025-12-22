@@ -1,20 +1,8 @@
 {
-  "name": "clearance-wizard-monorepo",
+  "name": "clearance-wizard-web",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
-  "scripts": {
-    "ios": "cd apps/clearance-wizard && npm run ios",
-    "android": "cd apps/clearance-wizard && npm run android",
-    "start": "cd apps/clearance-wizard && npm start",
-    "test": "npm run test --workspaces"
-  },
-  "devDependencies": {
-    "typescript": "^5.3.3"
-  },
+  "description": "Clearance Wizard - Static Web App for AR measurements",
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
