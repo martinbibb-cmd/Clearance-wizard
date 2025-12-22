@@ -2,13 +2,7 @@
   "name": "clearance-wizard-web",
   "version": "1.0.0",
   "private": true,
-  "description": "Clearance Wizard - Web App (Static)",
-  "scripts": {
-    "ios": "cd apps/clearance-wizard && npm run ios",
-    "android": "cd apps/clearance-wizard && npm run android",
-    "start": "cd apps/clearance-wizard && npm start",
-    "test": "echo 'No tests for static web app'"
-  },
+  "description": "Clearance Wizard - Static Web App for AR measurements",
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
